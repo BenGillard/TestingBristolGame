@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Bristol Map App - Map & GPS Test</title>
+    
+    <!-- Leaflet.js CSS -->
+    <link rel="stylesheet" href="https://unpkg.com" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    
+    <style>
+        body {
+            padding: 0;
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: #121212;
+            color: #fff;
+        }
+        html, body, #map {
+            height: 100%;
+            width: 100vw;
+        }
+        #ui-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            background: rgba(30, 30, 30, 0.85);
+            backdrop-filter: blur(10px);
+            padding: 12px;
+            border-radius: 8px;
+            z-index: 1000;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.1);
+            font-size: 14px;
+            pointer-events: none;
+        }
+        .status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #ffcc00;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        .status-active { background: #00ff66; }
+        .status-error { background: #ff3333; }
+        .data-row {
+            margin: 4px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+        .data-label { color: #aaa; }
+        .data-val { font-weight: bold; font-family: monospace; }
+    </style>
+</head>
+<body>
+
+    <!-- HUD Overlay for Real-time GPS Diagnostics -->
+    <div id="ui-overlay">
+        <div style="font-weight: bold; margin-bottom: 8px; display: flex; align-items: center;">
+            <span id="status-dot" class="status-dot"></span>
+            <span id="status-text">Initialising GPS...</span>
+        </div>
+        <div class="data-row"><span class="data-label">Latitude:</span><span id="lat" class="data-val">-</span></div>
+        <div class="data-row"><span class="data-label">Longitude:</span><span id="lng" class="data-val">-</span></div>
+        <div class="data-row"><span class="data-label">Accuracy:</span><span id="acc" class="data-val">-</span></div>
+        <div class="data-row"><span class="data-label">Pings Received:</span><span id="ping-count" class="data-val">0</span></div>
+    </div>
+
+    <!-- Map Canvas Container -->
+    <div id="map"></div>
+
+    <!-- Leaflet.js Script Library -->
+    <script src="https://unpkg.com" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <script>
+        // --- Map Setup Configuration ---
+        // Default coordinates set near the centre of Bristol (College Green / Cathedral area)
+        const bristolCentre = [51.4526, -2.6016];
+        
+        // Custom bounds to prevent users from scrolling all the way out of Bristol
+        const bristolBounds = L.latLngBounds(
+            L.latLng(51.3900, -2.7200), // South West boundary 
+            L.latLng(51.5200, -2.4800)  // North East boundary
+        );
+
+        const map = L.map('map', {
+            center: bristolCentre,
+            zoom: 16,
+            minZoom: 12,
+            maxZoom: 19,
+            maxBounds: bristolBounds,
+            maxBoundsViscosity: 1.0, // Hard bounceback at Bristol borders
+            zoomControl: false // Cleaner UI layout for mobile
+        });
+
+        // Use a CartoDB Dark Matter tile layer for an immersive, game-like neon night style
+        L.tileLayer('https://{s}://{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors &copy; <a href="https://carto.com">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 20
+        }).addTo(map);
+
+        // Player marker setup
+        let playerMarker = null;
+        let playerAccuracyCircle = null;
+        let movementPath = L.polyline([], {color: '#00ff66', weight: 4, opacity: 0.7}).addTo(map);
+        let watchId = null;
+        let totalPings = 0;
+
+        // UI Element Selectors
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        const latVal = document.getElementById('lat');
+        const lngVal = document.getElementById('lng');
+        const accVal = document.getElementById('acc');
+        const pingCountVal = document.getElementById('ping-count');
+
+        // --- HTML5 Browser Geolocation Engine ---
+        function startTracking() {
+            if (!navigator.geolocation) {
+                updateStatus("Geolocation Unsupported", "error");
+                return;
+            }
+
+            const geoOptions = {
+                enableHighAccuracy: true, // Forces hardware GPS chips over cellular triangulation
+                timeout: 10000,           // 10-second timeout limit per query update
+                maximumAge: 0             // Do not use cached data; fetch raw live location updates
+            };
+
+            // watchPosition creates a persistent thread streaming updates natively as the user walks
+            watchId = navigator.geolocation.watchPosition(handleGPSUpdate, handleGPSError, geoOptions);
+        }
+
+        function handleGPSUpdate(position) {
+            totalPings++;
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            const accuracy = position.coords.accuracy; // Measured in metres
+
+            // Update UI Diagnostics Overlay
+            updateStatus("Live Tracker Connected", "active");
+            latVal.innerText = lat.toFixed(5);
+            lngVal.innerText = lng.toFixed(5);
+            accVal.innerText = `${Math.round(accuracy)}m`;
+            pingCountVal.innerText = totalPings;
+
+            const playerLatLng = new L.LatLng(lat, lng);
+
+            // Update Map Visual Layers
+            if (!playerMarker) {
+                // First ping configuration
+                playerMarker = L.circleMarker(playerLatLng, {
+                    radius: 8,
+                    fillColor: '#00ff66',
+                    color: '#fff',
+                    weight: 2,
+                    fillOpacity: 1
+                }).addTo(map);
+
+                playerAccuracyCircle = L.circle(playerLatLng, {
+                    radius: accuracy,
+                    color: '#00ff66',
+                    fillColor: '#00ff66',
+                    fillOpacity: 0.15,
+                    weight: 1
+                }).addTo(map);
+
+                // Auto-pan view over to player's current location on first boot
+                map.setView(playerLatLng, 17);
+            } else {
+                // Existing entity location updates
+                playerMarker.setLatLng(playerLatLng);
+                playerAccuracyCircle.setLatLng(playerLatLng);
+                playerAccuracyCircle.setRadius(accuracy);
+            }
+
+            // Append new breadcrumb trail node if accuracy is decent (< 30 metres)
+            if (accuracy < 30) {
+                movementPath.addLatLng(playerLatLng);
+            }
+        }
+
+        function handleGPSError(error) {
+            let errorMsg = "GPS Error";
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    errorMsg = "Location access denied by user.";
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    errorMsg = "GPS signal lost or unavailable.";
+                    break;
+                case error.TIMEOUT:
+                    errorMsg = "Location request timed out.";
+                    break;
+            }
+            updateStatus(errorMsg, "error");
+        }
+
+        function updateStatus(text, type) {
+            statusText.innerText = text;
+            statusDot.className = "status-dot";
+            if (type === "active") statusDot.classList.add("status-active");
+            if (type === "error") statusDot.classList.add("status-error");
+        }
+
+        // Run the mapping client initialization script immediately on load
+        window.onload = startTracking;
+    </script>
+</body>
+</html>
