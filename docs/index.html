@@ -7,7 +7,9 @@
     
     <link rel="manifest" href="./manifest.json">
     <meta name="theme-color" content="#1b263b">
-    <link rel="stylesheet" href="https://unpkg.com" crossorigin="" />
+    
+    <!-- Self-hosted Leaflet CSS -->
+    <link rel="stylesheet" href="./lib/leaflet/leaflet.css" />
 
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -53,104 +55,110 @@
     <div id="map"></div>
 
     <div id="ui-layer">
-        <div class="status-text" id="gps-status">Ready to sync location</div>
+        <div class="status-text" id="gps-status">Loading Map Engine...</div>
         <div class="coord-display" id="gps-coords">Lat: -- | Lon: --</div>
         <button id="start-btn">Start GPS Tracking</button>
     </div>
 
-    <script src="https://unpkg.com" crossorigin=""></script>
+    <!-- Self-hosted Leaflet JS -->
+    <script src="./lib/leaflet/leaflet.js"></script>
     <script>
         const statusDisplay = document.getElementById('gps-status');
         const coordDisplay = document.getElementById('gps-coords');
         const startBtn = document.getElementById('start-btn');
 
-        // Catch and display any silent JS errors directly on your phone screen
         window.onerror = function(msg, url, line) {
             statusDisplay.style.color = "#e63946";
             statusDisplay.textContent = "JS Error: " + msg + " (Line " + line + ")";
         };
 
-        // 1. Initialize Leaflet Map locked to Bristol
-        const BRISTOL_BOUNDS = L.latLngBounds([51.4000, -2.6800], [51.5200, -2.5000]);
-        const map = L.map('map', {
-            center: [51.4545, -2.5879],
-            zoom: 15,
-            minZoom: 12,
-            maxZoom: 19,
-            maxBounds: BRISTOL_BOUNDS,
-            maxBoundsViscosity: 1.0,
-            zoomControl: false
-        });
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap'
-        }).addTo(map);
-
-        // 2. Render Collectibles
-        const MOCK_COLLECTIBLES = [
-            { name: "Castle Park Fountain Token", lat: 51.4548, lng: -2.5872, tier: "global" },
-            { name: "SS Great Britain Maritime Shard", lat: 51.4484, lng: -2.6083, tier: "global" },
-            { name: "Clifton Suspension Bridge Medal", lat: 51.4549, lng: -2.6279, tier: "global" },
-            { name: "Gloucester Road Indie Coin", lat: 51.4772, lng: -2.5891, tier: "personal" },
-            { name: "BS5 Local Sandbox Anchor", lat: 51.4580, lng: -2.5530, tier: "personal" }
-        ];
-
-        MOCK_COLLECTIBLES.forEach(item => {
-            L.circle([item.lat, item.lng], {
-                radius: 20,
-                color: item.tier === 'global' ? '#ffb703' : '#fb8500',
-                fillOpacity: 0.4
-            }).addTo(map).bindPopup(`<b>${item.name}</b>`);
-        });
-
-        let playerMarker = null;
-        let accuracyCircle = null;
-
-        function startGPS() {
-            if (!('geolocation' in navigator)) {
-                statusDisplay.textContent = "Geolocation not supported.";
+        // Wait until local Leaflet script has fully loaded
+        window.addEventListener('load', () => {
+            if (typeof L === 'undefined') {
+                statusDisplay.style.color = "#e63946";
+                statusDisplay.textContent = "Map library not found at ./lib/leaflet/leaflet.js";
                 return;
             }
 
-            statusDisplay.textContent = "Requesting Android GPS...";
-            statusDisplay.style.color = "#ffb703";
+            // 1. Initialize Leaflet Map locked to Bristol
+            const BRISTOL_BOUNDS = L.latLngBounds([51.4000, -2.6800], [51.5200, -2.5000]);
+            const map = L.map('map', {
+                center: [51.4545, -2.5879],
+                zoom: 15,
+                minZoom: 12,
+                maxZoom: 19,
+                maxBounds: BRISTOL_BOUNDS,
+                maxBoundsViscosity: 1.0,
+                zoomControl: false
+            });
 
-            navigator.geolocation.watchPosition(
-                (pos) => {
-                    const { latitude, longitude, accuracy } = pos.coords;
-                    const currentPos = L.latLng(latitude, longitude);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap'
+            }).addTo(map);
 
-                    statusDisplay.textContent = "GPS Connected";
-                    statusDisplay.style.color = "#4ad66d";
-                    coordDisplay.textContent = `Lat: ${latitude.toFixed(5)} | Lon: ${longitude.toFixed(5)} (±${Math.round(accuracy)}m)`;
-                    startBtn.style.display = "none";
+            // 2. Render Collectibles
+            const MOCK_COLLECTIBLES = [
+                { name: "Castle Park Fountain Token", lat: 51.4548, lng: -2.5872, tier: "global" },
+                { name: "SS Great Britain Maritime Shard", lat: 51.4484, lng: -2.6083, tier: "global" },
+                { name: "Clifton Suspension Bridge Medal", lat: 51.4549, lng: -2.6279, tier: "global" },
+                { name: "Gloucester Road Indie Coin", lat: 51.4772, lng: -2.5891, tier: "personal" },
+                { name: "BS5 Local Sandbox Anchor", lat: 51.4580, lng: -2.5530, tier: "personal" }
+            ];
 
-                    if (!playerMarker) {
-                        playerMarker = L.circleMarker(currentPos, {
-                            radius: 8, color: '#fff', fillColor: '#00b4d8', fillOpacity: 1, weight: 3
-                        }).addTo(map);
-                        accuracyCircle = L.circle(currentPos, {
-                            radius: accuracy, color: '#00b4d8', fillOpacity: 0.15, weight: 1
-                        }).addTo(map);
-                        map.setView(currentPos, 16);
-                    } else {
-                        playerMarker.setLatLng(currentPos);
-                        accuracyCircle.setLatLng(currentPos).setRadius(accuracy);
-                    }
-                },
-                (err) => {
-                    statusDisplay.style.color = "#e63946";
-                    statusDisplay.textContent = `GPS Error (${err.code}): ${err.message}`;
-                },
-                { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
-            );
-        }
+            MOCK_COLLECTIBLES.forEach(item => {
+                L.circle([item.lat, item.lng], {
+                    radius: 20,
+                    color: item.tier === 'global' ? '#ffb703' : '#fb8500',
+                    fillOpacity: 0.4
+                }).addTo(map).bindPopup(`<b>${item.name}</b>`);
+            });
 
-        // Trigger on button tap (guarantees Android Chrome shows the permission prompt)
-        startBtn.addEventListener('click', startGPS);
-        
-        // Also attempt auto-start
-        startGPS();
+            let playerMarker = null;
+            let accuracyCircle = null;
+
+            function startGPS() {
+                if (!('geolocation' in navigator)) {
+                    statusDisplay.textContent = "Geolocation not supported.";
+                    return;
+                }
+
+                statusDisplay.textContent = "Requesting Android GPS...";
+                statusDisplay.style.color = "#ffb703";
+
+                navigator.geolocation.watchPosition(
+                    (pos) => {
+                        const { latitude, longitude, accuracy } = pos.coords;
+                        const currentPos = L.latLng(latitude, longitude);
+
+                        statusDisplay.textContent = "GPS Connected";
+                        statusDisplay.style.color = "#4ad66d";
+                        coordDisplay.textContent = `Lat: ${latitude.toFixed(5)} | Lon: ${longitude.toFixed(5)} (±${Math.round(accuracy)}m)`;
+                        startBtn.style.display = "none";
+
+                        if (!playerMarker) {
+                            playerMarker = L.circleMarker(currentPos, {
+                                radius: 8, color: '#fff', fillColor: '#00b4d8', fillOpacity: 1, weight: 3
+                            }).addTo(map);
+                            accuracyCircle = L.circle(currentPos, {
+                                radius: accuracy, color: '#00b4d8', fillOpacity: 0.15, weight: 1
+                            }).addTo(map);
+                            map.setView(currentPos, 16);
+                        } else {
+                            playerMarker.setLatLng(currentPos);
+                            accuracyCircle.setLatLng(currentPos).setRadius(accuracy);
+                        }
+                    },
+                    (err) => {
+                        statusDisplay.style.color = "#e63946";
+                        statusDisplay.textContent = `GPS Error (${err.code}): ${err.message}`;
+                    },
+                    { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+                );
+            }
+
+            startBtn.addEventListener('click', startGPS);
+            startGPS();
+        });
     </script>
 </body>
 </html>
