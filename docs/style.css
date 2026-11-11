@@ -77,3 +77,23 @@ html, body, #map {
     50% { transform: scale(1.02); }
     100% { transform: scale(1); }
 }
+
+/* Dark Mode Treasure Map Theme */
+.leaflet-tile-pane {
+    filter: invert(92%) sepia(35%) hue-rotate(345deg) saturate(140%) brightness(82%) contrast(105%);
+}
+
+/* Deep bronze-slate background while new tiles load */
+.leaflet-container {
+    background: #14110e;
+}
+
+/* Subtle warm vignette around the screen edges */
+#map::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 500;
+    box-shadow: inset 0 0 70px rgba(10, 8, 5, 0.85);
+}
