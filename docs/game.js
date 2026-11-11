@@ -67,9 +67,10 @@ window.addEventListener('load', () => {
     }
     renderAllNodes();
 
-    let nearbyNode = null;
+        let nearbyNode = null;
     let playerMarker = null;
     let accuracyCircle = null;
+    let claimRangeCircle = null;
 
     claimBtn.addEventListener('click', () => {
         if (!nearbyNode) return;
@@ -122,17 +123,39 @@ window.addEventListener('load', () => {
                 startBtn.style.display = "none";
 
                 if (!playerMarker) {
-                    playerMarker = L.circleMarker(currentPos, {
-                        radius: 8, color: '#fff', fillColor: '#00b4d8', fillOpacity: 1, weight: 3
-                    }).addTo(map);
                     accuracyCircle = L.circle(currentPos, {
-                        radius: accuracy, color: '#00b4d8', fillOpacity: 0.15, weight: 1
+                        radius: accuracy,
+                        color: '#64748b',
+                        fillColor: '#64748b',
+                        fillOpacity: 0.08,
+                        weight: 1,
+                        dashArray: '3, 3'
                     }).addTo(map);
-                    map.setView(currentPos, 16);
+
+                    claimRangeCircle = L.circle(currentPos, {
+                        radius: 25,
+                        color: '#ffb703',
+                        fillColor: '#ffb703',
+                        fillOpacity: 0.15,
+                        weight: 2,
+                        className: 'claim-range-pulse'
+                    }).addTo(map);
+
+                    playerMarker = L.circleMarker(currentPos, {
+                        radius: 8,
+                        color: '#fff',
+                        fillColor: '#00b4d8',
+                        fillOpacity: 1,
+                        weight: 3
+                    }).addTo(map);
+
+                    map.setView(currentPos, 17);
                 } else {
-                    playerMarker.setLatLng(currentPos);
                     accuracyCircle.setLatLng(currentPos).setRadius(accuracy);
+                    claimRangeCircle.setLatLng(currentPos);
+                    playerMarker.setLatLng(currentPos);
                 }
+
                 checkProximity(currentPos);
             },
             (err) => {
@@ -146,3 +169,4 @@ window.addEventListener('load', () => {
     startBtn.addEventListener('click', startGPS);
     startGPS();
 });
+
