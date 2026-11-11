@@ -8,7 +8,7 @@
     <link rel="manifest" href="./manifest.json">
     <meta name="theme-color" content="#1b263b">
     
-    <!-- Self-hosted Leaflet CSS -->
+    <!-- Self-hosted Leaflet 1.9.4 CSS -->
     <link rel="stylesheet" href="./lib/leaflet/leaflet.css" />
 
     <style>
@@ -17,7 +17,7 @@
             width: 100%;
             height: 100%;
             background-color: #0d1b2a;
-            font-family: sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             overflow: hidden;
         }
         #ui-layer {
@@ -34,6 +34,7 @@
             padding: 15px;
             color: #e0e1dd;
             text-align: center;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
         }
         .status-text { font-size: 14px; font-weight: bold; margin-bottom: 5px; color: #00b4d8; }
         .coord-display { font-family: monospace; font-size: 12px; color: #e0e1dd; }
@@ -60,7 +61,7 @@
         <button id="start-btn">Start GPS Tracking</button>
     </div>
 
-    <!-- Self-hosted Leaflet JS -->
+    <!-- Self-hosted Leaflet 1.9.4 JS -->
     <script src="./lib/leaflet/leaflet.js"></script>
     <script>
         const statusDisplay = document.getElementById('gps-status');
@@ -72,15 +73,14 @@
             statusDisplay.textContent = "JS Error: " + msg + " (Line " + line + ")";
         };
 
-        // Wait until local Leaflet script has fully loaded
         window.addEventListener('load', () => {
             if (typeof L === 'undefined') {
                 statusDisplay.style.color = "#e63946";
-                statusDisplay.textContent = "Map library not found at ./lib/leaflet/leaflet.js";
+                statusDisplay.textContent = "Leaflet 1.9.4 not found at ./lib/leaflet/leaflet.js";
                 return;
             }
 
-            // 1. Initialize Leaflet Map locked to Bristol
+            // 1. Initialize Leaflet 1.9.4 Map locked to Bristol
             const BRISTOL_BOUNDS = L.latLngBounds([51.4000, -2.6800], [51.5200, -2.5000]);
             const map = L.map('map', {
                 center: [51.4545, -2.5879],
@@ -93,7 +93,7 @@
             });
 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; OpenStreetMap'
+                attribution: '&copy; OpenStreetMap contributors'
             }).addTo(map);
 
             // 2. Render Collectibles
@@ -147,6 +147,15 @@
                             playerMarker.setLatLng(currentPos);
                             accuracyCircle.setLatLng(currentPos).setRadius(accuracy);
                         }
+
+                        // Check 25-metre proximity using Leaflet's built-in distanceTo()
+                        MOCK_COLLECTIBLES.forEach(item => {
+                            const distance = currentPos.distanceTo([item.lat, item.lng]);
+                            if (distance <= 25) {
+                                statusDisplay.textContent = `🎯 Near "${item.name}" (${Math.round(distance)}m)!`;
+                                statusDisplay.style.color = "#ffb703";
+                            }
+                        });
                     },
                     (err) => {
                         statusDisplay.style.color = "#e63946";
