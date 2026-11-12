@@ -5,6 +5,11 @@ const startBtn = document.getElementById('start-btn');
 const claimBtn = document.getElementById('claim-btn');
 const recentreBtn = document.getElementById('recentre-btn');
 
+// Circle Radii (in metres — diameter is double the radius)
+const PLAYER_PULSE_RADIUS = 25;    // 50m diameter pulsing ring around player
+const GLOBAL_NODE_RADIUS = 40;     // 80m diameter for Global landmarks (increase as desired)
+const PERSONAL_NODE_RADIUS = 30;   // 60m diameter for Personal spawns (increase as desired)
+
 // Safety & Anti-Cheat Constants (15 mph = 6.7056 m/s)
 const MAX_WALKING_SPEED_MPS = 6.71; 
 const TELEPORT_SPEED_MPS = 45.0; // ~100 mph (flags obvious spoofing)
@@ -158,7 +163,7 @@ window.addEventListener('load', () => {
 
             // Mystery appearance: neutral cyan/gold ring until claimed
             L.circle([node.lat, node.lng], {
-                radius: isGlobal ? 25 : 20,
+                radius: isGlobal ? GLOBAL_NODE_RADIUS : PERSONAL_NODE_RADIUS,
                 color: isGlobal ? '#ffb703' : '#00b4d8',
                 fillColor: isGlobal ? '#ffb703' : '#00b4d8',
                 fillOpacity: isGlobal ? 0.50 : 0.30,
@@ -202,22 +207,28 @@ window.addEventListener('load', () => {
 
     function checkProximity(currentPos) {
         let closest = null;
-        let closestDist = Infinity;
+        let closestEdgeGap = Infinity;
 
         CM.getActiveNodes().forEach(node => {
-            const dist = currentPos.distanceTo([node.lat, node.lng]);
-            if (dist <= 25 && dist < closestDist) {
-                closest = node;
-                closestDist = dist;
+            const centerDist = currentPos.distanceTo([node.lat, node.lng]);
+            const nodeRadius = node.tier === "global" ? GLOBAL_NODE_RADIUS : PERSONAL_NODE_RADIUS;
+            const maxOverlapDist = PLAYER_PULSE_RADIUS + nodeRadius;
+
+            // True as soon as the outer edges of the two circles touch or overlap
+            if (centerDist <= maxOverlapDist) {
+                const edgeGap = centerDist - maxOverlapDist;
+                if (edgeGap < closestEdgeGap) {
+                    closest = node;
+                    closestEdgeGap = edgeGap;
+                }
             }
         });
 
         if (closest) {
             nearbyNode = closest;
-            const style = CM.styles[closest.type];
-            statusDisplay.textContent = `In Range: ${closest.name} (${Math.round(closestDist)}m)`;
+            statusDisplay.textContent = `Cache in Reach: ${closest.name}`;
             statusDisplay.style.color = "#ffb703";
-            claimBtn.textContent = `Claim ${style.icon} ${style.label}`;
+            claimBtn.textContent = `Claim Mystery Cache`;
             claimBtn.style.display = "block";
         } else {
             nearbyNode = null;
@@ -226,6 +237,7 @@ window.addEventListener('load', () => {
             statusDisplay.style.color = "#4ad66d";
         }
     }
+
 
     function validateMovement(currentPos, timestamp, coords) {
         // 1. Check browser mock location flag
@@ -298,7 +310,7 @@ window.addEventListener('load', () => {
                     }).addTo(map);
 
                     claimRangeCircle = L.circle(currentPos, {
-                        radius: 25,
+                        radius: PLAYER_PULSE_RADIUS,
                         color: '#ffb703',
                         fillColor: '#ffb703',
                         fillOpacity: 0.15,
