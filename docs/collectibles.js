@@ -19,7 +19,6 @@ window.CollectibleManager = (function() {
         { id: "global-bs5-4", name: "Netham Park Railings", lat: 51.4512, lng: -2.5588, type: "metal", tier: "global" }
     ];
 
-    // Ready for future crafting/merging expansion
     const RECIPES = {
         masonry_block: { label: "Masonry Block", cost: { stone: 2, water: 1 } },
         reinforced_beam: { label: "Reinforced Beam", cost: { wood: 2, metal: 1 } }
@@ -37,6 +36,7 @@ window.CollectibleManager = (function() {
         return {
             inventory: { stone: 0, wood: 0, water: 0, metal: 0 },
             crafted: {},
+            discovered: [],
             claimedGlobalIds: [],
             personalCycleId: null,
             personalNodes: []
@@ -59,9 +59,8 @@ window.CollectibleManager = (function() {
         const keys = Object.keys(RESOURCE_STYLES);
         let index = 0;
 
-        // Adjust these two step values to control spawn density:
-        const latStep = 0.0027; // high density (lower number increases density)
-        const lngStep = 0.0042; // high density
+        const latStep = 0.0027;
+        const lngStep = 0.0042;
 
         for (let lat = 51.3000; lat <= 51.6400; lat += latStep) {
             for (let lng = -3.0000; lng <= -2.4100; lng += lngStep) {
@@ -69,7 +68,6 @@ window.CollectibleManager = (function() {
                 spawns.push({
                     id: `personal-${cycleId}-${index++}`,
                     name: `Mystery Resource Deposit`,
-                    // Keep random jitter proportional to half the step size
                     lat: Number((lat + (Math.random() - 0.5) * (latStep * 0.5)).toFixed(5)),
                     lng: Number((lng + (Math.random() - 0.5) * (lngStep * 0.5)).toFixed(5)),
                     type: type,
@@ -118,8 +116,7 @@ window.CollectibleManager = (function() {
         return RESOURCE_STYLES[type];
     }
 
-        function consumeResources(costMap) {
-        // Verify player has enough of every required resource first
+    function consumeResources(costMap) {
         for (const [type, qty] of Object.entries(costMap)) {
             if ((saveData.inventory[type] || 0) < qty) return false;
         }
@@ -153,6 +150,4 @@ window.CollectibleManager = (function() {
         consumeResources,
         addCraftedItem
     };
-
 })();
-
