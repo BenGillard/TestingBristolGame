@@ -52,12 +52,21 @@
 </head>
 <body>
 
+    <div id="inventory-bar">
+        <div class="res-slot"><div class="res-label" style="color:#94a3b8;">🪨 Stone</div><div class="res-count" id="count-stone">0</div></div>
+        <div class="res-slot"><div class="res-label" style="color:#d97706;">🪵 Wood</div><div class="res-count" id="count-wood">0</div></div>
+        <div class="res-slot"><div class="res-label" style="color:#38bdf8;">💧 Water</div><div class="res-count" id="count-water">0</div></div>
+        <div class="res-slot"><div class="res-label" style="color:#e2e8f0;">⚙️ Metal</div><div class="res-count" id="count-metal">0</div></div>
+    </div>
+
     <div id="map"></div>
 
     <div id="ui-layer">
         <div class="status-text" id="gps-status">Loading Map Engine...</div>
         <div class="coord-display" id="gps-coords">Lat: -- | Lon: --</div>
-        <button id="start-btn">Start GPS Tracking</button>
+        <div class="refresh-info" id="refresh-status">Personal spawns refresh daily at 4:00 PM</div>
+        <button id="start-btn" class="action-btn">Start GPS Tracking</button>
+        <button id="claim-btn" class="action-btn">Claim Resource</button>
     </div>
 
     <!-- Switched to Cloudflare CDN -->
