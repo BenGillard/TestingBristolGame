@@ -78,6 +78,30 @@ html, body, #map {
     100% { transform: scale(1); }
 }
 
+#recentre-btn {
+    position: absolute;
+    bottom: 165px;
+    right: 4%;
+    z-index: 1000;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: rgba(13, 27, 42, 0.95);
+    border: 2px solid #00b4d8;
+    color: #00b4d8;
+    font-size: 20px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    display: none; /* Shown once GPS locks */
+    align-items: center;
+    justify-content: center;
+}
+#recentre-btn:active {
+    transform: scale(0.95);
+    background: #1b263b;
+}
+
+
 /* Dark Mode Treasure Map Theme */
 .leaflet-tile-pane {
     filter: invert(92%) sepia(35%) hue-rotate(345deg) saturate(140%) brightness(82%) contrast(105%);
@@ -122,4 +146,56 @@ html, body, #map {
         fill-opacity: 0.18;
         stroke-width: 2.5;
     }
+}
+
+/* Mystery Claim Reveal Overlay */
+#claim-reveal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+
+#claim-reveal-overlay.visible {
+    opacity: 1;
+}
+
+.reveal-card {
+    background: rgba(13, 27, 42, 0.94);
+    border: 2px solid #ffb703;
+    border-radius: 18px;
+    padding: 24px 36px;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.65);
+    transform: scale(0.85);
+    transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+#claim-reveal-overlay.visible .reveal-card {
+    transform: scale(1);
+}
+
+.reveal-title {
+    color: #e0e1dd;
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+}
+
+.reveal-icon {
+    font-size: 64px;
+    line-height: 1.1;
+    margin-bottom: 6px;
+}
+
+.reveal-label {
+    color: #ffb703;
+    font-size: 16px;
+    font-weight: bold;
 }

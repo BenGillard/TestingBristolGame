@@ -59,14 +59,19 @@ window.CollectibleManager = (function() {
         const keys = Object.keys(RESOURCE_STYLES);
         let index = 0;
 
-        for (let lat = 51.4250; lat <= 51.4950; lat += 0.0045) {
-            for (let lng = -2.6350; lng <= -2.5250; lng += 0.0072) {
+        // Adjust these two step values to control spawn density:
+        const latStep = 0.0027; // high density (lower number increases density)
+        const lngStep = 0.0042; // high density
+
+        for (let lat = 51.3000; lat <= 51.6400; lat += latStep) {
+            for (let lng = -3.0000; lng <= -2.4100; lng += lngStep) {
                 const type = keys[Math.floor(Math.random() * keys.length)];
                 spawns.push({
                     id: `personal-${cycleId}-${index++}`,
-                    name: `Wild ${RESOURCE_STYLES[type].label} Deposit`,
-                    lat: Number((lat + (Math.random() - 0.5) * 0.0020).toFixed(5)),
-                    lng: Number((lng + (Math.random() - 0.5) * 0.0030).toFixed(5)),
+                    name: `Mystery Resource Deposit`,
+                    // Keep random jitter proportional to half the step size
+                    lat: Number((lat + (Math.random() - 0.5) * (latStep * 0.5)).toFixed(5)),
+                    lng: Number((lng + (Math.random() - 0.5) * (lngStep * 0.5)).toFixed(5)),
                     type: type,
                     tier: "personal",
                     claimed: false
@@ -74,6 +79,7 @@ window.CollectibleManager = (function() {
             }
         }
         return spawns;
+    }
     }
 
     function ensureDailySpawns() {

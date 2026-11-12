@@ -5,169 +5,59 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Bristol Exploration Game</title>
     
-    <link rel="manifest" href="./manifest.json">
+    <!-- PWA Manifest & Theme -->
+    <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1b263b">
-    
-    <!-- Switched to Cloudflare CDN for reliable loading -->
-    <link rel="stylesheet" href="https://cloudflare.com" />
+    <link rel="apple-touch-icon" href="assets/icon-192.png">
 
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        html, body, #map {
-            width: 100%;
-            height: 100%;
-            background-color: #0d1b2a;
-            font-family: sans-serif;
-            overflow: hidden;
-        }
-        #ui-layer {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 1000;
-            width: 90%;
-            max-width: 400px;
-            background: rgba(13, 27, 42, 0.95);
-            border: 2px solid #415a77;
-            border-radius: 12px;
-            padding: 15px;
-            color: #e0e1dd;
-            text-align: center;
-        }
-        .status-text { font-size: 14px; font-weight: bold; margin-bottom: 5px; color: #00b4d8; }
-        .coord-display { font-family: monospace; font-size: 12px; color: #e0e1dd; }
-        #start-btn {
-            margin-top: 10px;
-            padding: 8px 16px;
-            background: #00b4d8;
-            color: #0d1b2a;
-            border: none;
-            border-radius: 6px;
-            font-weight: bold;
-            font-size: 14px;
-            cursor: pointer;
-        }
-    </style>
+    <!-- Self-Hosted Leaflet CSS (verify path matches your folder structure) -->
+    <link rel="stylesheet" href="./lib/leaflet/leaflet.css" />
+    
+    <!-- Game Styles -->
+    <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
+    <!-- Top Inventory Bar -->
     <div id="inventory-bar">
-        <div class="res-slot"><div class="res-label" style="color:#94a3b8;">🪨 Stone</div><div class="res-count" id="count-stone">0</div></div>
-        <div class="res-slot"><div class="res-label" style="color:#d97706;">🪵 Wood</div><div class="res-count" id="count-wood">0</div></div>
-        <div class="res-slot"><div class="res-label" style="color:#38bdf8;">💧 Water</div><div class="res-count" id="count-water">0</div></div>
-        <div class="res-slot"><div class="res-label" style="color:#e2e8f0;">⚙️ Metal</div><div class="res-count" id="count-metal">0</div></div>
+        <div class="res-slot">
+            <div class="res-label">🪨 Stone</div>
+            <div class="res-count" id="count-stone">0</div>
+        </div>
+        <div class="res-slot">
+            <div class="res-label">🪵 Wood</div>
+            <div class="res-count" id="count-wood">0</div>
+        </div>
+        <div class="res-slot">
+            <div class="res-label">💧 Water</div>
+            <div class="res-count" id="count-water">0</div>
+        </div>
+        <div class="res-slot">
+            <div class="res-label">⚙️ Metal</div>
+            <div class="res-count" id="count-metal">0</div>
+        </div>
     </div>
 
+    <!-- Fullscreen Map Container -->
     <div id="map"></div>
 
+    <!-- Recentre on Player Button -->
+    <button id="recentre-btn" title="Recentre on Player" aria-label="Recentre on Player">🎯</button>
+
+    <!-- Bottom Status & Action UI -->
     <div id="ui-layer">
         <div class="status-text" id="gps-status">Loading Map Engine...</div>
         <div class="coord-display" id="gps-coords">Lat: -- | Lon: --</div>
         <div class="refresh-info" id="refresh-status">Personal spawns refresh daily at 4:00 PM</div>
-        <button id="start-btn" class="action-btn">Start GPS Tracking</button>
-        <button id="claim-btn" class="action-btn">Claim Resource</button>
+        <button class="action-btn" id="start-btn">Start GPS Tracking</button>
+        <button class="action-btn" id="claim-btn">Claim Resource</button>
     </div>
 
-    <!-- Switched to Cloudflare CDN -->
-    <script src="https://cloudflare.com"></script>
-    <script>
-        const statusDisplay = document.getElementById('gps-status');
-        const coordDisplay = document.getElementById('gps-coords');
-        const startBtn = document.getElementById('start-btn');
-
-        window.onerror = function(msg, url, line) {
-            statusDisplay.style.color = "#e63946";
-            statusDisplay.textContent = "JS Error: " + msg + " (Line " + line + ")";
-        };
-
-        // Wait until all external scripts (Leaflet) have fully loaded
-        window.addEventListener('load', () => {
-            if (typeof L === 'undefined') {
-                statusDisplay.style.color = "#e63946";
-                statusDisplay.textContent = "Map library blocked. Check internet connection.";
-                return;
-            }
-
-            // 1. Initialize Leaflet Map locked to Bristol
-            const BRISTOL_BOUNDS = L.latLngBounds([51.4000, -2.6800], [51.5200, -2.5000]);
-            const map = L.map('map', {
-                center: [51.4545, -2.5879],
-                zoom: 15,
-                minZoom: 12,
-                maxZoom: 19,
-                maxBounds: BRISTOL_BOUNDS,
-                maxBoundsViscosity: 1.0,
-                zoomControl: false
-            });
-
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; OpenStreetMap'
-            }).addTo(map);
-
-            // 2. Render Collectibles
-            const MOCK_COLLECTIBLES = [
-                { name: "Castle Park Fountain Token", lat: 51.4548, lng: -2.5872, tier: "global" },
-                { name: "SS Great Britain Maritime Shard", lat: 51.4484, lng: -2.6083, tier: "global" },
-                { name: "Clifton Suspension Bridge Medal", lat: 51.4549, lng: -2.6279, tier: "global" },
-                { name: "Gloucester Road Indie Coin", lat: 51.4772, lng: -2.5891, tier: "personal" },
-                { name: "BS5 Local Sandbox Anchor", lat: 51.4580, lng: -2.5530, tier: "personal" }
-            ];
-
-            MOCK_COLLECTIBLES.forEach(item => {
-                L.circle([item.lat, item.lng], {
-                    radius: 20,
-                    color: item.tier === 'global' ? '#ffb703' : '#fb8500',
-                    fillOpacity: 0.4
-                }).addTo(map).bindPopup(`<b>${item.name}</b>`);
-            });
-
-            let playerMarker = null;
-            let accuracyCircle = null;
-
-            function startGPS() {
-                if (!('geolocation' in navigator)) {
-                    statusDisplay.textContent = "Geolocation not supported.";
-                    return;
-                }
-
-                statusDisplay.textContent = "Requesting Android GPS...";
-                statusDisplay.style.color = "#ffb703";
-
-                navigator.geolocation.watchPosition(
-                    (pos) => {
-                        const { latitude, longitude, accuracy } = pos.coords;
-                        const currentPos = L.latLng(latitude, longitude);
-
-                        statusDisplay.textContent = "GPS Connected";
-                        statusDisplay.style.color = "#4ad66d";
-                        coordDisplay.textContent = `Lat: ${latitude.toFixed(5)} | Lon: ${longitude.toFixed(5)} (±${Math.round(accuracy)}m)`;
-                        startBtn.style.display = "none";
-
-                        if (!playerMarker) {
-                            playerMarker = L.circleMarker(currentPos, {
-                                radius: 8, color: '#fff', fillColor: '#00b4d8', fillOpacity: 1, weight: 3
-                            }).addTo(map);
-                            accuracyCircle = L.circle(currentPos, {
-                                radius: accuracy, color: '#00b4d8', fillOpacity: 0.15, weight: 1
-                            }).addTo(map);
-                            map.setView(currentPos, 16);
-                        } else {
-                            playerMarker.setLatLng(currentPos);
-                            accuracyCircle.setLatLng(currentPos).setRadius(accuracy);
-                        }
-                    },
-                    (err) => {
-                        statusDisplay.style.color = "#e63946";
-                        statusDisplay.textContent = `GPS Error (${err.code}): ${err.message}`;
-                    },
-                    { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
-                );
-            }
-
-            startBtn.addEventListener('click', startGPS);
-            startGPS();
-        });
-    </script>
+    <!-- Self-Hosted Leaflet JS (verify path matches your folder structure) -->
+    <script src="./lib/leaflet/leaflet.js"></script>
+    
+    <!-- Game Modules -->
+    <script src="collectibles.js"></script>
+    <script src="game.js"></script>
 </body>
 </html>

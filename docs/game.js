@@ -3,11 +3,80 @@ const coordDisplay = document.getElementById('gps-coords');
 const refreshDisplay = document.getElementById('refresh-status');
 const startBtn = document.getElementById('start-btn');
 const claimBtn = document.getElementById('claim-btn');
+const recentreBtn = document.getElementById('recentre-btn');
+
+// Safety & Anti-Cheat Constants (15 mph = 6.7056 m/s)
+const MAX_WALKING_SPEED_MPS = 6.71; 
+const TELEPORT_SPEED_MPS = 45.0; // ~100 mph (flags obvious spoofing)
+
+let lastValidFix = null; // { latlng: L.LatLng, timestamp: number }
+let isPassengerConfirmed = false;
+let safetyOverlay = null;
 
 window.onerror = function(msg, url, line) {
     statusDisplay.style.color = "#e63946";
     statusDisplay.textContent = "JS Error: " + msg + " (Line " + line + ")";
 };
+
+// Build the un-dismissible 15mph safety overlay dynamically
+function initSafetyOverlay() {
+    safetyOverlay = document.createElement('div');
+    safetyOverlay.id = 'safety-overlay';
+    safetyOverlay.style.cssText = `
+        display: none; position: fixed; inset: 0; z-index: 9999;
+        background: rgba(13, 27, 42, 0.92); backdrop-filter: blur(8px);
+        color: #e0e1dd; flex-direction: column; align-items: center;
+        justify-content: center; text-align: center; padding: 24px;
+    `;
+    safetyOverlay.innerHTML = `
+        <div style="font-size: 42px; margin-bottom: 12px;">🚌</div>
+        <h2 style="color: #ffb703; margin-bottom: 10px;">Moving Fast!</h2>
+        <p style="max-width: 320px; line-height: 1.5; margin-bottom: 20px;">
+            You're travelling over 15 mph. Are you on the bus? Confirm you are a passenger to keep exploring safely.
+        </p>
+        <button id="confirm-passenger-btn" style="
+            padding: 12px 24px; background: #00b4d8; color: #0d1b2a;
+            border: none; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer;
+        ">I am a Passenger</button>
+    `;
+    document.body.appendChild(safetyOverlay);
+
+    document.getElementById('confirm-passenger-btn').addEventListener('click', () => {
+        isPassengerConfirmed = true;
+        safetyOverlay.style.display = 'none';
+    });
+}
+
+// Collectible reveal overlay for claiming mystery resources
+let revealOverlay = null;
+let revealTimeout = null;
+
+function initRevealOverlay() {
+    revealOverlay = document.createElement('div');
+    revealOverlay.id = 'claim-reveal-overlay';
+    revealOverlay.innerHTML = `
+        <div class="reveal-card">
+            <div class="reveal-title">You found</div>
+            <div class="reveal-icon" id="reveal-icon">❓</div>
+            <div class="reveal-label" id="reveal-label">Resource</div>
+        </div>
+    `;
+    document.body.appendChild(revealOverlay);
+}
+
+function showClaimReveal(style) {
+    if (!revealOverlay) return;
+    document.getElementById('reveal-icon').textContent = style.icon;
+    document.getElementById('reveal-label').textContent = style.label;
+
+    revealOverlay.classList.add('visible');
+
+    if (revealTimeout) clearTimeout(revealTimeout);
+    revealTimeout = setTimeout(() => {
+        revealOverlay.classList.remove('visible');
+    }, 2000);
+}
+
 
 window.addEventListener('load', () => {
     if (typeof L === 'undefined' || !window.CollectibleManager) {
@@ -16,6 +85,8 @@ window.addEventListener('load', () => {
         return;
     }
 
+    initSafetyOverlay();
+    initRevealOverlay();
     const CM = window.CollectibleManager;
 
     function updateInventoryUI() {
@@ -27,11 +98,12 @@ window.addEventListener('load', () => {
     }
     updateInventoryUI();
 
-    const BRISTOL_BOUNDS = L.latLngBounds([51.4000, -2.6800], [51.5200, -2.5000]);
+        // Full BS Postcode Area Bounds (Clevedon/Weston-super-Mare to Yate/Thornbury & Mendips)
+    const BRISTOL_BOUNDS = L.latLngBounds([51.2700, -3.0600], [51.6750, -2.3700]);
     const map = L.map('map', {
         center: [51.4565, -2.5510],
-        zoom: 15,
-        minZoom: 12,
+        zoom: 14,
+        minZoom: 10,
         maxZoom: 19,
         maxBounds: BRISTOL_BOUNDS,
         maxBoundsViscosity: 1.0,
@@ -42,6 +114,32 @@ window.addEventListener('load', () => {
         attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
+    // Create a dedicated non-interactive pane for postcode borders below collectibles
+    map.createPane('postcodePane');
+    map.getPane('postcodePane').style.zIndex = 350;
+    map.getPane('postcodePane').style.pointerEvents = 'none';
+
+    // Load BS Postcode District Boundaries (BS1 - BS49)
+    fetch('assets/bs_postcodes.geojson')
+        .then(res => {
+            if (!res.ok) throw new Error('Postcode GeoJSON not found');
+            return res.json();
+        })
+        .then(geojsonData => {
+            L.geoJSON(geojsonData, {
+                pane: 'postcodePane',
+                interactive: false,
+                style: {
+                    color: '#ffffff',
+                    weight: 1.2,
+                    opacity: 0.22,
+                    fillOpacity: 0
+                }
+            }).addTo(map);
+        })
+        .catch(err => console.warn('Postcode overlay skipped:', err));
+
+
     const collectiblesLayer = L.layerGroup().addTo(map);
 
     function renderAllNodes() {
@@ -49,28 +147,47 @@ window.addEventListener('load', () => {
         const cycleId = CM.ensureDailySpawns();
         refreshDisplay.textContent = `Cycle: ${cycleId} (Resets 4:00 PM)`;
 
+        // Expand visible screen bounds slightly (20%) so nodes don't pop in abruptly while panning
+        const visibleBounds = map.getBounds().pad(0.2);
+
         CM.getActiveNodes().forEach(node => {
-            const style = CM.styles[node.type];
+            // Skip drawing nodes outside the current screen view for fast mobile performance
+            if (!visibleBounds.contains([node.lat, node.lng])) return;
+
             const isGlobal = node.tier === "global";
 
+            // Mystery appearance: neutral cyan/gold ring until claimed
             L.circle([node.lat, node.lng], {
                 radius: isGlobal ? 25 : 20,
-                color: style.color,
-                fillColor: style.color,
-                fillOpacity: isGlobal ? 0.55 : 0.3,
+                color: isGlobal ? '#ffb703' : '#00b4d8',
+                fillColor: isGlobal ? '#ffb703' : '#00b4d8',
+                fillOpacity: isGlobal ? 0.50 : 0.30,
                 dashArray: isGlobal ? null : '4, 4',
                 weight: isGlobal ? 3 : 2
             })
-            .bindPopup(`<b>${style.icon} ${node.name}</b><br>${style.label} (${isGlobal ? 'Global' : 'Daily Personal'})`)
+            .bindPopup(`<b>❓ Mystery Cache</b><br>${isGlobal ? 'Global Landmark' : 'Daily Personal Spawn'}<br><i>Walk within 25m to claim!</i>`)
             .addTo(collectiblesLayer);
         });
     }
+
+    // Re-render visible nodes whenever the player finishes panning or zooming the map
+    map.on('moveend', renderAllNodes);
     renderAllNodes();
 
-        let nearbyNode = null;
+
+    let nearbyNode = null;
     let playerMarker = null;
     let accuracyCircle = null;
     let claimRangeCircle = null;
+    let latestPos = null;
+
+    if (recentreBtn) {
+        recentreBtn.addEventListener('click', () => {
+            if (latestPos) {
+                map.setView(latestPos, 17, { animate: true });
+            }
+        });
+    }
 
     claimBtn.addEventListener('click', () => {
         if (!nearbyNode) return;
@@ -110,17 +227,65 @@ window.addEventListener('load', () => {
         }
     }
 
+    function validateMovement(currentPos, timestamp, coords) {
+        // 1. Check browser mock location flag
+        if (coords.mocked === true) {
+            statusDisplay.style.color = "#e63946";
+            statusDisplay.textContent = "Mock GPS detected. Disable spoofing to play.";
+            return false;
+        }
+
+        if (lastValidFix) {
+            const timeDeltaSec = (timestamp - lastValidFix.timestamp) / 1000;
+            if (timeDeltaSec > 0.5) {
+                const distMeters = lastValidFix.latlng.distanceTo(currentPos);
+                const speedMps = distMeters / timeDeltaSec;
+
+                // 2. Rubber-band / Teleport check
+                if (speedMps > TELEPORT_SPEED_MPS && distMeters > 150) {
+                    statusDisplay.style.color = "#e63946";
+                    statusDisplay.textContent = "Unrealistic travel speed detected. Syncing...";
+                    lastValidFix = { latlng: currentPos, timestamp };
+                    return false;
+                }
+
+                // 3. 15 mph Safety Check
+                if (speedMps > MAX_WALKING_SPEED_MPS && !isPassengerConfirmed) {
+                    safetyOverlay.style.display = 'flex';
+                } else if (speedMps <= MAX_WALKING_SPEED_MPS) {
+                    isPassengerConfirmed = false; // Reset confirmation once back on foot
+                }
+            }
+        }
+
+        lastValidFix = { latlng: currentPos, timestamp };
+        return true;
+    }
+
+    // Handle mobile browser sleep / wake cycles cleanly
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            renderAllNodes(); // Catch up if 4:00 PM reset passed while asleep
+            lastValidFix = null; // Prevent false teleport flag on wake
+        }
+    });
+
     function startGPS() {
         if (!('geolocation' in navigator)) return;
-        statusDisplay.textContent = "Requesting Android GPS...";
+        statusDisplay.textContent = "Requesting GPS...";
         statusDisplay.style.color = "#ffb703";
 
         navigator.geolocation.watchPosition(
             (pos) => {
                 const { latitude, longitude, accuracy } = pos.coords;
                 const currentPos = L.latLng(latitude, longitude);
+                latestPos = currentPos;
+
                 coordDisplay.textContent = `Lat: ${latitude.toFixed(5)} | Lon: ${longitude.toFixed(5)} (±${Math.round(accuracy)}m)`;
                 startBtn.style.display = "none";
+                if (recentreBtn) recentreBtn.style.display = "flex";
+
+                const isValid = validateMovement(currentPos, pos.timestamp, pos.coords);
 
                 if (!playerMarker) {
                     accuracyCircle = L.circle(currentPos, {
@@ -156,17 +321,17 @@ window.addEventListener('load', () => {
                     playerMarker.setLatLng(currentPos);
                 }
 
-                checkProximity(currentPos);
+                if (isValid) {checkProximity(currentPos);
+                }
             },
             (err) => {
-                statusDisplay.style.color = "#e63946";
-                statusDisplay.textContent = `GPS Error (${err.code}): ${err.message}`;
+            statusDisplay.style.color = "#e63946";
+            statusDisplay.textContent = GPS Error (${err.code}): ${err.message};
             },
-            { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+            { enableHighAccuracy: true, timeout: 15000,   maximumAge: 10000 }
         );
     }
 
     startBtn.addEventListener('click', startGPS);
     startGPS();
 });
-
