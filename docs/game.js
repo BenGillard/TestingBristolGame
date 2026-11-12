@@ -201,6 +201,7 @@ window.addEventListener('load', () => {
         statusDisplay.style.color = "#4ad66d";
         nearbyNode = null;
         claimBtn.style.display = "none";
+        showClaimReveal(style);
         updateInventoryUI();
         renderAllNodes();
     });
@@ -338,7 +339,7 @@ window.addEventListener('load', () => {
             },
             (err) => {
             statusDisplay.style.color = "#e63946";
-            statusDisplay.textContent = GPS Error (${err.code}): ${err.message};
+            statusDisplay.textContent = `GPS Error (${err.code}): ${err.message}`;
             },
             { enableHighAccuracy: true, timeout: 15000,   maximumAge: 10000 }
         );
