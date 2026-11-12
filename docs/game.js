@@ -74,8 +74,8 @@ let currentHeading = null;
 function createPlayerDivIcon() {
     return L.divIcon({
         className: '', // Prevent default Leaflet white square background
-        iconSize:,
-        iconAnchor:, // Centres the dot directly on the GPS coordinate
+        iconSize: [48,48],
+        iconAnchor:[24,24], // Centres the dot directly on the GPS coordinate
         html: `
             <div class="player-avatar-wrapper">
                 <div class="player-heading-cone" id="player-cone"></div>
@@ -84,6 +84,8 @@ function createPlayerDivIcon() {
         `
     });
 }
+
+
 
 function updatePlayerHeading(degrees) {
     if (degrees === null || degrees === undefined || Number.isNaN(degrees)) return;
@@ -171,11 +173,17 @@ window.addEventListener('load', () => {
 
     function updateInventoryUI() {
         const inv = CM.getInventory();
-        document.getElementById('count-stone').textContent = inv.stone;
-        document.getElementById('count-wood').textContent = inv.wood;
-        document.getElementById('count-water').textContent = inv.water;
-        document.getElementById('count-metal').textContent = inv.metal;
+        const elStone = document.getElementById('count-stone');
+        const elWood = document.getElementById('count-wood');
+        const elWater = document.getElementById('count-water');
+        const elMetal = document.getElementById('count-metal');
+
+        if (elStone) elStone.textContent = inv.stone;
+        if (elWood) elWood.textContent = inv.wood;
+        if (elWater) elWater.textContent = inv.water;
+        if (elMetal) elMetal.textContent = inv.metal;
     }
+
     updateInventoryUI();
 
         // Full BS Postcode Area Bounds (Clevedon/Weston-super-Mare to Yate/Thornbury & Mendips)

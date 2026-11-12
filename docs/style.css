@@ -7,34 +7,6 @@ html, body, #map {
     overflow: hidden;
 }
 
-#inventory-bar {
-    position: absolute;
-    top: 15px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 1000;
-    width: 92%;
-    max-width: 420px;
-    background: rgba(13, 27, 42, 0.95);
-    border: 2px solid #415a77;
-    border-radius: 12px;
-    padding: 10px 12px;
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 6px;
-    text-align: center;
-    color: #e0e1dd;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
-}
-.res-slot {
-    background: rgba(27, 38, 59, 0.9);
-    border-radius: 8px;
-    padding: 6px 4px;
-    border: 1px solid #415a77;
-}
-.res-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.85; }
-.res-count { font-size: 16px; font-weight: bold; margin-top: 2px; }
-
 /* Tab View Containers */
 .tab-view {
     display: none;
@@ -59,7 +31,7 @@ html, body, #map {
     background: #0d1b2a;
     color: #e0e1dd;
     overflow-y: auto;
-    padding: 78px 16px 24px; /* Clears top #inventory-bar */
+    padding: 20px 16px 24px;
     box-sizing: border-box;
 }
 
