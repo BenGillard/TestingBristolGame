@@ -80,7 +80,6 @@ window.CollectibleManager = (function() {
         }
         return spawns;
     }
-    }
 
     function ensureDailySpawns() {
         const activeCycle = getCurrent4PMCycleId();
