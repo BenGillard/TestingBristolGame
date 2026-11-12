@@ -111,12 +111,48 @@ window.CollectibleManager = (function() {
         return RESOURCE_STYLES[node.type];
     }
 
+    function grantResource(type, amount = 1) {
+        if (!RESOURCE_STYLES[type]) return null;
+        saveData.inventory[type] = (saveData.inventory[type] || 0) + amount;
+        persist();
+        return RESOURCE_STYLES[type];
+    }
+
+        function consumeResources(costMap) {
+        // Verify player has enough of every required resource first
+        for (const [type, qty] of Object.entries(costMap)) {
+            if ((saveData.inventory[type] || 0) < qty) return false;
+        }
+        for (const [type, qty] of Object.entries(costMap)) {
+            saveData.inventory[type] -= qty;
+        }
+        persist();
+        return true;
+    }
+
+    function addCraftedItem(itemId) {
+        if (!saveData.crafted) saveData.crafted = {};
+        if (!saveData.discovered) saveData.discovered = [];
+        saveData.crafted[itemId] = (saveData.crafted[itemId] || 0) + 1;
+        if (!saveData.discovered.includes(itemId)) {
+            saveData.discovered.push(itemId);
+        }
+        persist();
+    }
+
     return {
         styles: RESOURCE_STYLES,
         recipes: RECIPES,
         getInventory: () => saveData.inventory,
+        getCrafted: () => saveData.crafted || {},
+        getDiscovered: () => saveData.discovered || [],
         ensureDailySpawns,
         getActiveNodes,
-        claimNode
+        claimNode,
+        grantResource,
+        consumeResources,
+        addCraftedItem
     };
+
 })();
+

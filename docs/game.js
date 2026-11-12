@@ -69,6 +69,80 @@ function initRevealOverlay() {
     document.body.appendChild(revealOverlay);
 }
 
+let currentHeading = null;
+
+function createPlayerDivIcon() {
+    return L.divIcon({
+        className: '', // Prevent default Leaflet white square background
+        iconSize:,
+        iconAnchor:, // Centres the dot directly on the GPS coordinate
+        html: `
+            <div class="player-avatar-wrapper">
+                <div class="player-heading-cone" id="player-cone"></div>
+                <div class="player-core-dot"></div>
+            </div>
+        `
+    });
+}
+
+function updatePlayerHeading(degrees) {
+    if (degrees === null || degrees === undefined || Number.isNaN(degrees)) return;
+    currentHeading = degrees;
+    const cone = document.getElementById('player-cone');
+    if (cone) {
+        cone.classList.add('active');
+        cone.style.transform = `rotate(${Math.round(degrees)}deg)`;
+    }
+}
+
+let compassAttached = false;
+
+function attachCompassEvents() {
+    if (compassAttached) return;
+    compassAttached = true;
+
+    const handleOrientation = (event) => {
+        let heading = null;
+
+        // iOS Safari provides webkitCompassHeading (0 = North, clockwise)
+        if (typeof event.webkitCompassHeading === 'number') {
+            heading = event.webkitCompassHeading;
+        } 
+        // Android Chrome provides alpha relative to North on deviceorientationabsolute
+        else if (event.absolute === true && typeof event.alpha === 'number') {
+            heading = (360 - event.alpha) % 360;
+        }
+
+        if (heading !== null) {
+            updatePlayerHeading(heading);
+        }
+    };
+
+    if ('ondeviceorientationabsolute' in window) {
+        window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+    } else if ('ondeviceorientation' in window) {
+        window.addEventListener('deviceorientation', handleOrientation, true);
+    }
+}
+
+// Safely requests iOS 13+ Motion & Orientation permission on user tap, or attaches immediately on Android
+function requestCompassAccess() {
+    if (typeof DeviceOrientationEvent !== 'undefined' &&
+        typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission()
+            .then((permissionState) => {
+                if (permissionState === 'granted') {
+                    attachCompassEvents();
+                }
+            })
+            .catch((err) => console.warn('Compass permission skipped:', err));
+    } else {
+        attachCompassEvents();
+    }
+}
+
+
+
 function showClaimReveal(style) {
     if (!revealOverlay) return;
     document.getElementById('reveal-icon').textContent = style.icon;
@@ -91,6 +165,7 @@ window.addEventListener('load', () => {
     }
 
     initSafetyOverlay();
+    requestCompassAccess();
     initRevealOverlay();
     const CM = window.CollectibleManager;
 
@@ -114,6 +189,8 @@ window.addEventListener('load', () => {
         maxBoundsViscosity: 1.0,
         zoomControl: false
     });
+
+    if (window.TabRouter) window.TabRouter.registerMap(map);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors'
@@ -188,11 +265,13 @@ window.addEventListener('load', () => {
 
     if (recentreBtn) {
         recentreBtn.addEventListener('click', () => {
+            requestCompassAccess();
             if (latestPos) {
                 map.setView(latestPos, 17, { animate: true });
             }
         });
     }
+
 
     claimBtn.addEventListener('click', () => {
         if (!nearbyNode) return;
@@ -201,6 +280,8 @@ window.addEventListener('load', () => {
         statusDisplay.style.color = "#4ad66d";
         nearbyNode = null;
         claimBtn.style.display = "none";
+
+        if (window.DailiesUI) window.DailiesUI.recordCacheClaim();
         showClaimReveal(style);
         updateInventoryUI();
         renderAllNodes();
@@ -294,7 +375,7 @@ window.addEventListener('load', () => {
                 const currentPos = L.latLng(latitude, longitude);
                 latestPos = currentPos;
 
-                coordDisplay.textContent = `Lat: ${latitude.toFixed(5)} | Lon: ${longitude.toFixed(5)} (±${Math.round(accuracy)}m)`;
+                if (coordDisplay) coordDisplay.textContent =`Lat: ${latitude.toFixed(5)} | Lon: ${longitude.toFixed(5)} (±${Math.round(accuracy)}m)`;
                 startBtn.style.display = "none";
                 if (recentreBtn) recentreBtn.style.display = "flex";
 
@@ -319,13 +400,43 @@ window.addEventListener('load', () => {
                         className: 'claim-range-pulse'
                     }).addTo(map);
 
-                    playerMarker = L.circleMarker(currentPos, {
-                        radius: 8,
-                        color: '#fff',
-                        fillColor: '#00b4d8',
-                        fillOpacity: 1,
-                        weight: 3
+                                    if (!playerMarker) {
+                    accuracyCircle = L.circle(currentPos, {
+                        radius: accuracy,
+                        color: '#64748b',
+                        fillColor: '#64748b',
+                        fillOpacity: 0.08,
+                        weight: 1,
+                        dashArray: '3, 3'
                     }).addTo(map);
+
+                    claimRangeCircle = L.circle(currentPos, {
+                        radius: PLAYER_PULSE_RADIUS,
+                        color: '#ffb703',
+                        fillColor: '#ffb703',
+                        fillOpacity: 0.15,
+                        weight: 2,
+                        className: 'claim-range-pulse'
+                    }).addTo(map);
+
+                    playerMarker = L.marker(currentPos, {
+                        icon: createPlayerDivIcon(),
+                        interactive: false,
+                        zIndexOffset: 1000
+                    }).addTo(map);
+
+                    map.setView(currentPos, 17);
+                } else {
+                    accuracyCircle.setLatLng(currentPos).setRadius(accuracy);
+                    claimRangeCircle.setLatLng(currentPos);
+                    playerMarker.setLatLng(currentPos);
+                }
+
+                // Fallback to GPS travel direction if compass sensor hasn't fired yet
+                if (typeof pos.coords.heading === 'number' && !Number.isNaN(pos.coords.heading)) {
+                    updatePlayerHeading(pos.coords.heading);
+                }
+
 
                     map.setView(currentPos, 17);
                 } else {
@@ -345,6 +456,10 @@ window.addEventListener('load', () => {
         );
     }
 
-    startBtn.addEventListener('click', startGPS);
+    startBtn.addEventListener('click', () => {
+        requestCompassAccess();
+        startGPS();
+    });
+
     startGPS();
 });
