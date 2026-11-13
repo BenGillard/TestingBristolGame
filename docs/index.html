@@ -19,8 +19,13 @@
     <main id="tab-map" class="tab-view active">
         <div id="map"></div>
 
-        <!-- Recentre Button -->
-        <button id="recentre-btn" title="Recentre on Player" aria-label="Recentre on Player">🎯</button>
+    <!--- Map Controls Stack -->    
+    <div id="map-controls-stack">
+        <button id="profile-btn" class="map-fab" title="Explorer Profile">👤</button>
+        <button id="settings-btn" class="map-fab" title="Settings & Help">⚙️</button>
+        <button id="recentre-btn" class="map-fab" title="Recentre on GPS">🎯</button>
+    </div>
+
 
         <!-- Floating Action Buttons Above Bottom Nav -->
         <div id="map-hud">
@@ -106,6 +111,7 @@
     <script src="bulletin.js"></script>
     <script src="inventory.js"></script>
     <script src="leaderboard.js"></script>
+    <script src="modals.js"></script>
     <script src="game.js"></script>
 </body>
 </html>

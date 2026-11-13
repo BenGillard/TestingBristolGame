@@ -8,16 +8,58 @@ window.CollectibleManager = (function() {
         metal: { label: "Metal", icon: "⚙️", color: "#e2e8f0" }
     };
 
-    const GLOBAL_COLLECTIBLES = [
-        { id: "global-1", name: "Castle Park Fountain", lat: 51.4548, lng: -2.5872, type: "water", tier: "global" },
-        { id: "global-2", name: "SS Great Britain Hull", lat: 51.4484, lng: -2.6083, type: "metal", tier: "global" },
-        { id: "global-3", name: "Clifton Suspension Bridge Pier", lat: 51.4549, lng: -2.6279, type: "stone", tier: "global" },
-        { id: "global-4", name: "Gloucester Road Timber", lat: 51.4772, lng: -2.5891, type: "wood", tier: "global" },
-        { id: "global-bs5-1", name: "St George Park Lake", lat: 51.4589, lng: -2.5486, type: "water", tier: "global" },
-        { id: "global-bs5-2", name: "Trooper's Hill Chimney", lat: 51.4517, lng: -2.5364, type: "stone", tier: "global" },
-        { id: "global-bs5-3", name: "Church Road Redfest Oak", lat: 51.4581, lng: -2.5562, type: "wood", tier: "global" },
-        { id: "global-bs5-4", name: "Netham Park Railings", lat: 51.4512, lng: -2.5588, type: "metal", tier: "global" }
-    ];
+// Keep your handcrafted collectibles as the base list
+const GLOBAL_COLLECTIBLES = [
+    { id: "global-1", name: "Castle Park Fountain", lat: 51.4548, lng: -2.5872, type: "water", tier: "global" },
+    { id: "global-2", name: "SS Great Britain Hull", lat: 51.4484, lng: -2.6083, type: "metal", tier: "global" },
+    { id: "global-3", name: "Clifton Suspension Bridge Pier", lat: 51.4549, lng: -2.6279, type: "stone", tier: "global" },
+    { id: "global-4", name: "Gloucester Road Timber", lat: 51.4772, lng: -2.5891, type: "wood", tier: "global" },
+    { id: "global-bs5-1", name: "St George Park Lake", lat: 51.4589, lng: -2.5486, type: "water", tier: "global" },
+    { id: "global-bs5-2", name: "Trooper's Hill Chimney", lat: 51.4517, lng: -2.5364, type: "stone", tier: "global" },
+    { id: "global-bs5-3", name: "Church Road Redfest Oak", lat: 51.4581, lng: -2.5562, type: "wood", tier: "global" },
+    { id: "global-bs5-4", name: "Netham Park Railings", lat: 51.4512, lng: -2.5588, type: "metal", tier: "global" }
+];
+
+// Fetch and append the GeoJSON data
+    async function loadOsmCollectibles(geoJsonUrl) {
+        try {
+            const response = await fetch(geoJsonUrl);
+            const geojson = await response.json();
+
+            const osmCollectibles = geojson.features
+                .filter(feature => {
+                    const props = feature.properties || {};
+                    if (!props.name || props.access === "private" || feature.geometry?.type !== "Point") {
+                        return false;
+                    }
+                    // Keep ~30% of green spaces so Wood stays balanced with Stone/Water/Metal
+                    const idHash = String(feature.id || props.name)
+                        .split('')
+                        .reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+                    return (idHash % 10) < 3;
+                })
+                .map(feature => {
+                    const props = feature.properties;
+                    const [lng, lat] = feature.geometry.coordinates;
+                    return {
+                        id: `osm-${String(feature.id).replace("/", "-")}`,
+                        name: props.name,
+                        lat: lat,
+                        lng: lng,
+                        type: "wood",
+                        tier: "global"
+                    };
+                });
+
+            GLOBAL_COLLECTIBLES.push(...osmCollectibles);
+            window.dispatchEvent(new Event('osmCollectiblesLoaded'));
+        } catch (error) {
+            console.error("Failed to load GeoJSON collectibles:", error);
+        }
+    }
+
+loadOsmCollectibles("assets/bs_greenery.geojson");
+
 
     const RECIPES = {
         masonry_block: { label: "Masonry Block", cost: { stone: 2, water: 1 } },
@@ -47,11 +89,9 @@ window.CollectibleManager = (function() {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(saveData));
     }
 
-    function getCurrent4PMCycleId() {
+    function getCurrentMidnightCycleId() {
         const now = new Date();
-        const cycleDate = new Date(now);
-        if (now.getHours() < 16) cycleDate.setDate(cycleDate.getDate() - 1);
-        return `${cycleDate.getFullYear()}-${cycleDate.getMonth() + 1}-${cycleDate.getDate()}-1600`;
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}-0000`;
     }
 
     function generatePersonalSpawns(cycleId) {
@@ -80,7 +120,7 @@ window.CollectibleManager = (function() {
     }
 
     function ensureDailySpawns() {
-        const activeCycle = getCurrent4PMCycleId();
+        const activeCycle = getCurrentMidnightCycleId();
         if (saveData.personalCycleId !== activeCycle) {
             saveData.personalCycleId = activeCycle;
             saveData.personalNodes = generatePersonalSpawns(activeCycle);

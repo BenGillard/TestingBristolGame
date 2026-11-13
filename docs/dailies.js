@@ -12,8 +12,8 @@ window.DailiesUI = (function() {
             reward: { type: "stone", amount: 2 }
         },
         poll: {
-            question: "Best Sunday walk in BS?",
-            options: ["St George Park", "Ashton Court", "Leigh Woods", "Trooper's Hill"],
+            question: "What feature should we add next?",
+            options: ["Treasure hunts", "Player created treasures", "Next generation collectibles", "Trooper's Hill"],
             reward: { type: "water", amount: 1 }
         },
         advert: {
@@ -125,6 +125,14 @@ window.DailiesUI = (function() {
         }
     }
 
+    const GEN1_POOL = ["stone", "wood", "water", "metal"];
+
+    function rollRandomGen1Reward(amount = 1) {
+        const randomType = GEN1_POOL[Math.floor(Math.random() * GEN1_POOL.length)];
+        return { type: randomType, amount };
+    }
+
+
 
     // Fetch queued daily content keyed by YYYY-MM-DD from external JSON
     async function loadScheduledContent() {
@@ -149,11 +157,11 @@ window.DailiesUI = (function() {
 
         container.innerHTML = `
             <div class="dailies-stack">
-                <!-- 1. Daily Check-In -->
+                                <!-- 1. Daily Check-In -->
                 <div class="daily-card ${state.checkedIn ? 'completed' : ''}">
                     <div class="daily-card-top">
                         <span class="daily-badge">✅ Daily Check-In</span>
-                        <span class="daily-reward">Streak: ${state.streak} 🔥</span>
+                        <span class="daily-reward">Streak: ${state.streak} 🔥 | +1 🎲 Gen 1</span>
                     </div>
                     <p class="daily-desc">Log in each day after midnight to keep your Bristol explorer streak alive.</p>
                     <button class="daily-btn" id="btn-daily-checkin" ${state.checkedIn ? 'disabled' : ''}>
@@ -165,7 +173,7 @@ window.DailiesUI = (function() {
                 <div class="daily-card ${state.puzzleSolved ? 'completed' : ''}">
                     <div class="daily-card-top">
                         <span class="daily-badge">🧩 Daily Puzzle</span>
-                        <span class="daily-reward">${todayContent.puzzle.rewardText}</span>
+                        <span class="daily-reward">+1 🎲 Gen 1</span>
                     </div>
                     <p class="daily-desc">${todayContent.puzzle.question}</p>
                     <button class="daily-btn" id="btn-daily-puzzle" ${state.puzzleSolved ? 'disabled' : ''}>
@@ -177,7 +185,7 @@ window.DailiesUI = (function() {
                 <div class="daily-card ${state.pollVote ? 'completed' : ''}">
                     <div class="daily-card-top">
                         <span class="daily-badge">📊 Daily Poll</span>
-                        <span class="daily-reward">+1 Water</span>
+                        <span class="daily-reward">+1 🎲 Gen 1</span>
                     </div>
                     <p class="daily-desc">${todayContent.poll.question}</p>
                     <div class="poll-options">
@@ -190,29 +198,31 @@ window.DailiesUI = (function() {
                     </div>
                 </div>
 
-                <!-- 4. Daily Advert -->
-                <div class="daily-card ${state.advertClaimed ? 'completed' : ''}">
+                <!-- 4. Daily Advert (No Reward Button) -->
+                <div class="daily-card">
                     <div class="daily-card-top">
                         <span class="daily-badge">📣 Daily Sponsor</span>
-                        <span class="daily-reward">+1 Wood</span>
                     </div>
                     <p class="daily-desc"><strong>${todayContent.advert.sponsor}:</strong> ${todayContent.advert.headline}</p>
-                    <button class="daily-btn" id="btn-daily-advert" ${state.advertClaimed ? 'disabled' : ''}>
-                        ${state.advertClaimed ? 'Sponsor Reward Claimed' : todayContent.advert.cta}
-                    </button>
                 </div>
 
                 <!-- 5. Daily Challenge -->
                 <div class="daily-card ${state.challengeClaimed ? 'completed' : ''}">
                     <div class="daily-card-top">
                         <span class="daily-badge">🎯 Daily Challenge</span>
-                        <span class="daily-reward">${todayContent.challenge.rewardText}</span>
+                        <span class="daily-reward">+1 🎲 Gen 1</span>
                     </div>
                     <p class="daily-desc"><strong>${todayContent.challenge.title}:</strong> ${todayContent.challenge.description}</p>
-                    <button class="daily-btn" id="btn-daily-challenge" ${state.challengeClaimed ? 'disabled' : ''}>
-                        ${state.challengeClaimed ? 'Challenge Complete' : `Progress: ${state.challengeProgress} / ${todayContent.challenge.target}`}
+                    <button class="daily-btn" id="btn-daily-challenge" 
+                            ${(state.challengeClaimed || state.challengeProgress < todayContent.challenge.target) ? 'disabled' : ''}>
+                        ${state.challengeClaimed 
+                            ? 'Challenge Complete' 
+                            : state.challengeProgress >= todayContent.challenge.target 
+                                ? 'Claim Challenge Reward' 
+                                : `Progress: ${state.challengeProgress} / ${todayContent.challenge.target}`}
                     </button>
                 </div>
+
             </div>
         `;
 
@@ -225,6 +235,7 @@ window.DailiesUI = (function() {
             checkinBtn.addEventListener('click', () => {
                 state.checkedIn = true;
                 state.streak += 1;
+                awardPlayer(rollRandomGen1Reward(1));
                 persist();
                 render();
             });
@@ -234,6 +245,7 @@ window.DailiesUI = (function() {
         if (puzzleBtn && !state.puzzleSolved) {
             puzzleBtn.addEventListener('click', () => {
                 state.puzzleSolved = true;
+                awardPlayer(rollRandomGen1Reward(1));
                 persist();
                 render();
             });
@@ -243,15 +255,17 @@ window.DailiesUI = (function() {
             btn.addEventListener('click', () => {
                 if (state.pollVote) return;
                 state.pollVote = btn.dataset.opt;
+                awardPlayer(rollRandomGen1Reward(1));
                 persist();
                 render();
             });
         });
 
-        const advertBtn = document.getElementById('btn-daily-advert');
-        if (advertBtn && !state.advertClaimed) {
-            advertBtn.addEventListener('click', () => {
-                state.advertClaimed = true;
+        const challengeBtn = document.getElementById('btn-daily-challenge');
+        if (challengeBtn && !state.challengeClaimed && state.challengeProgress >= todayContent.challenge.target) {
+            challengeBtn.addEventListener('click', () => {
+                state.challengeClaimed = true;
+                awardPlayer(rollRandomGen1Reward(1));
                 persist();
                 render();
             });
@@ -261,5 +275,6 @@ window.DailiesUI = (function() {
     // Preload external schedule once on startup
     loadScheduledContent().then(() => render());
 
-    return { render };
+    return { render, recordCacheClaim };
+
 })();

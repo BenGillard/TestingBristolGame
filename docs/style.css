@@ -112,26 +112,6 @@ html, body, #map {
     color: #0d1b2a;
 }
 
-/* Recentre Button positioned cleanly above bottom nav */
-#recentre-btn {
-    position: absolute;
-    bottom: 84px;
-    right: 4%;
-    z-index: 1000;
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    background: rgba(13, 27, 42, 0.95);
-    border: 2px solid #00b4d8;
-    color: #00b4d8;
-    font-size: 20px;
-    cursor: pointer;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-    display: none;
-    align-items: center;
-    justify-content: center;
-}
-
 /* Bottom 5-Icon Navigation Bar */
 #bottom-nav {
     position: fixed;
@@ -211,49 +191,93 @@ html, body, #map {
     100% { transform: scale(1); }
 }
 
-#recentre-btn {
+/* Vertical Floating Control Stack (Profile, Settings, Recentre) */
+#map-controls-stack {
     position: absolute;
-    bottom: 165px;
+    bottom: 155px;
     right: 4%;
     z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.map-fab {
     width: 44px;
     height: 44px;
     border-radius: 50%;
-    background: rgba(13, 27, 42, 0.95);
-    border: 2px solid #00b4d8;
-    color: #00b4d8;
+    background: var(--fab-bg, rgba(13, 27, 42, 0.95));
+    border: 2px solid var(--accent-primary, #00b4d8);
+    color: var(--accent-primary, #00b4d8);
     font-size: 20px;
     cursor: pointer;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-    display: none; /* Shown once GPS locks */
+    display: flex;
     align-items: center;
     justify-content: center;
+    transition: transform 0.12s ease, background 0.2s ease;
 }
-#recentre-btn:active {
-    transform: scale(0.95);
-    background: #1b263b;
+
+.map-fab:active {
+    transform: scale(0.94);
+}
+
+/* Recentre stays hidden until game.js receives first GPS lock */
+#recentre-btn {
+    display: none;
 }
 
 
-/* Dark Mode Treasure Map Theme */
-.leaflet-tile-pane {
+
+/* =========================================================
+   MAP THEMES & LIGHT/DARK COMPATIBILITY
+   Default: Maritime Dark (existing treasure map look)
+   ========================================================= */
+
+/* 1. Maritime Treasure Map — Dark Mode (Default) */
+body[data-theme="maritime-dark"] .leaflet-tile-pane,
+body:not([data-theme]) .leaflet-tile-pane {
     filter: invert(92%) sepia(35%) hue-rotate(345deg) saturate(140%) brightness(82%) contrast(105%);
 }
-
-/* Deep bronze-slate background while new tiles load */
-.leaflet-container {
+body[data-theme="maritime-dark"] .leaflet-container,
+body:not([data-theme]) .leaflet-container {
     background: #14110e;
 }
 
-/* Subtle warm vignette around the screen edges */
-#map::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    z-index: 500;
-    box-shadow: inset 0 0 70px rgba(10, 8, 5, 0.85);
+/* 2. Maritime Treasure Map — Light Mode (Aged Parchment Chart) */
+body[data-theme="maritime-light"] .leaflet-tile-pane {
+    filter: sepia(55%) saturate(135%) brightness(96%) contrast(104%) hue-rotate(-10deg);
 }
+body[data-theme="maritime-light"] .leaflet-container {
+    background: #e9dec9;
+}
+body[data-theme="maritime-light"] #map::after {
+    box-shadow: inset 0 0 65px rgba(92, 64, 32, 0.45);
+}
+
+/* 3. Cartoon Explorer — Dark Mode (Vibrant Night Atlas) */
+body[data-theme="cartoon-dark"] .leaflet-tile-pane {
+    filter: invert(90%) hue-rotate(180deg) saturate(210%) contrast(112%) brightness(88%);
+}
+body[data-theme="cartoon-dark"] .leaflet-container {
+    background: #0f172a;
+}
+body[data-theme="cartoon-dark"] #map::after {
+    box-shadow: inset 0 0 40px rgba(0, 180, 216, 0.15);
+}
+
+/* 4. Cartoon Explorer — Light Mode (Bright Storybook Map) */
+body[data-theme="cartoon-light"] .leaflet-tile-pane {
+    filter: saturate(185%) contrast(112%) brightness(103%);
+}
+body[data-theme="cartoon-light"] .leaflet-container {
+    background: #dbeafe;
+}
+body[data-theme="cartoon-light"] #map::after {
+    box-shadow: none;
+}
+
 
 /* Player Avatar Icon */
 /* Directional Player Marker & Vision Cone */
@@ -698,6 +722,24 @@ html, body, #map {
     color: #94a3b8;
 }
 
+.inv-box {
+    position: relative;
+}
+
+.recipe-icons-corner {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    font-size: 0.72rem;
+    background: rgba(15, 23, 42, 0.75);
+    color: #f8fafc;
+    padding: 2px 5px;
+    border-radius: 6px;
+    line-height: 1;
+    pointer-events: none;
+}
+
+
 
 /* Leaderboard Styles */
 .lb-wrapper {
@@ -810,4 +852,334 @@ html, body, #map {
     font-size: 10px;
     text-transform: uppercase;
     color: #94a3b8;
+}
+
+
+/* =========================================================
+   PROFILE & SETTINGS MODAL OVERLAYS
+   ========================================================= */
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    background: rgba(5, 10, 18, 0.72);
+    backdrop-filter: blur(5px);
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+}
+
+.modal-backdrop.open {
+    display: flex;
+}
+
+.modal-sheet {
+    width: 100%;
+    max-width: 480px;
+    max-height: 86vh;
+    background: #0d1b2a;
+    color: #e0e1dd;
+    border-top: 2px solid #00b4d8;
+    border-radius: 20px 20px 0 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.65);
+    animation: sheetSlideUp 0.22s ease-out;
+}
+
+@keyframes sheetSlideUp {
+    from { transform: translateY(30px); opacity: 0.6; }
+    to   { transform: translateY(0); opacity: 1; }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 18px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 18px;
+    color: #ffb703;
+}
+
+.modal-close-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(27, 38, 59, 0.9);
+    color: #e0e1dd;
+    font-size: 15px;
+    cursor: pointer;
+}
+
+.modal-body {
+    padding: 16px 18px 28px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.field-label {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: #94a3b8;
+    margin-top: 4px;
+}
+
+.field-hint {
+    font-size: 12px;
+    color: #94a3b8;
+    line-height: 1.4;
+}
+
+.avatar-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+
+.avatar-opt {
+    height: 46px;
+    font-size: 24px;
+    border-radius: 12px;
+    border: 2px solid rgba(255, 255, 255, 0.12);
+    background: rgba(27, 38, 59, 0.85);
+    cursor: pointer;
+}
+
+.avatar-opt.selected {
+    border-color: #ffb703;
+    background: rgba(255, 183, 3, 0.18);
+}
+
+.modal-input {
+    width: 100%;
+    padding: 11px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(0, 180, 216, 0.4);
+    background: #1b263b;
+    color: #ffffff;
+    font-size: 15px;
+}
+
+.modal-primary-btn {
+    margin-top: 6px;
+    padding: 12px;
+    border: none;
+    border-radius: 10px;
+    background: #00b4d8;
+    color: #0d1b2a;
+    font-size: 15px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.modal-feedback {
+    font-size: 13px;
+    font-weight: 700;
+    color: #4ad66d;
+    text-align: center;
+    min-height: 18px;
+}
+
+.danger-zone {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(230, 57, 70, 0.35);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.danger-title {
+    font-size: 13px;
+    font-weight: 800;
+    color: #f87171;
+}
+
+.modal-danger-btn {
+    padding: 11px;
+    border-radius: 10px;
+    border: 1px solid #e63946;
+    background: rgba(230, 57, 70, 0.15);
+    color: #f87171;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.modal-danger-btn.armed {
+    background: #e63946;
+    color: #ffffff;
+}
+
+/* Settings Rows & Segmented Control */
+.settings-group-title {
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #00b4d8;
+    margin-top: 8px;
+}
+
+.setting-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    background: rgba(27, 38, 59, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 11px 12px;
+}
+
+.toggle-row {
+    cursor: pointer;
+}
+
+.setting-name {
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.setting-sub {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 2px;
+}
+
+.segmented-control {
+    display: flex;
+    background: #0d1b2a;
+    border-radius: 9px;
+    padding: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.seg-btn {
+    padding: 6px 10px;
+    border: none;
+    border-radius: 7px;
+    background: transparent;
+    color: #94a3b8;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.seg-btn.active {
+    background: #00b4d8;
+    color: #0d1b2a;
+}
+
+.modal-select-compact {
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(0, 180, 216, 0.4);
+    background: #0d1b2a;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.toggle-switch {
+    width: 20px;
+    height: 20px;
+    accent-color: #00b4d8;
+    cursor: pointer;
+}
+
+/* Native HTML <details> FAQ Accordion */
+.faq-accordion {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.faq-item {
+    background: rgba(27, 38, 59, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 10px 12px;
+}
+
+.faq-question {
+    font-size: 13px;
+    font-weight: 700;
+    color: #ffb703;
+    cursor: pointer;
+    list-style: none;
+}
+
+.faq-question::-webkit-details-marker {
+    display: none;
+}
+
+.faq-question::after {
+    content: "▾";
+    float: right;
+    color: #94a3b8;
+}
+
+.faq-item[open] .faq-question::after {
+    content: "▴";
+}
+
+.faq-answer {
+    margin-top: 8px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: #cbd5e1;
+}
+
+/* =========================================================
+   LIGHT MODE UI OVERRIDES (Panels, Modals & Bottom Nav)
+   ========================================================= */
+body.light-ui .panel-view,
+body.light-ui .modal-sheet,
+body.light-ui .forge-sticky-wrapper {
+    background: #f8fafc;
+    color: #0f172a;
+}
+
+body.light-ui .daily-card,
+body.light-ui .inv-box,
+body.light-ui .lb-row,
+body.light-ui .setting-row,
+body.light-ui .faq-item,
+body.light-ui .forge-card {
+    background: #ffffff;
+    color: #0f172a;
+    border-color: rgba(15, 23, 42, 0.14);
+}
+
+body.light-ui .daily-desc,
+body.light-ui .faq-answer,
+body.light-ui .lb-primary,
+body.light-ui .modal-input {
+    color: #1e293b;
+}
+
+body.light-ui .modal-input,
+body.light-ui .modal-select-compact {
+    background: #f1f5f9;
+}
+
+body.light-ui #bottom-nav {
+    background: rgba(255, 255, 255, 0.96);
+    border-top-color: rgba(15, 23, 42, 0.12);
+}
+
+body.light-ui .nav-tab {
+    color: #64748b;
 }

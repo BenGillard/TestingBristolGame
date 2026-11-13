@@ -235,7 +235,7 @@ window.addEventListener('load', () => {
     function renderAllNodes() {
         collectiblesLayer.clearLayers();
         const cycleId = CM.ensureDailySpawns();
-        refreshDisplay.textContent = `Cycle: ${cycleId} (Resets 4:00 PM)`;
+        refreshDisplay.textContent = `Cycle: ${cycleId} (Resets Midnight Local)`;
 
         // Expand visible screen bounds slightly (20%) so nodes don't pop in abruptly while panning
         const visibleBounds = map.getBounds().pad(0.2);
@@ -260,10 +260,11 @@ window.addEventListener('load', () => {
         });
     }
 
-    // Re-render visible nodes whenever the player finishes panning or zooming the map
+    // Re-render visible nodes whenever the player finishes panning/zooming OR GeoJSON finishes loading
     map.on('moveend', renderAllNodes);
+    window.addEventListener('osmCollectiblesLoaded', renderAllNodes);
+    setInterval(renderAllNodes, 60000); // Catch midnight rollover while app stays open
     renderAllNodes();
-
 
     let nearbyNode = null;
     let playerMarker = null;
@@ -408,25 +409,6 @@ window.addEventListener('load', () => {
                         className: 'claim-range-pulse'
                     }).addTo(map);
 
-                                    if (!playerMarker) {
-                    accuracyCircle = L.circle(currentPos, {
-                        radius: accuracy,
-                        color: '#64748b',
-                        fillColor: '#64748b',
-                        fillOpacity: 0.08,
-                        weight: 1,
-                        dashArray: '3, 3'
-                    }).addTo(map);
-
-                    claimRangeCircle = L.circle(currentPos, {
-                        radius: PLAYER_PULSE_RADIUS,
-                        color: '#ffb703',
-                        fillColor: '#ffb703',
-                        fillOpacity: 0.15,
-                        weight: 2,
-                        className: 'claim-range-pulse'
-                    }).addTo(map);
-
                     playerMarker = L.marker(currentPos, {
                         icon: createPlayerDivIcon(),
                         interactive: false,
@@ -445,15 +427,8 @@ window.addEventListener('load', () => {
                     updatePlayerHeading(pos.coords.heading);
                 }
 
-
-                    map.setView(currentPos, 17);
-                } else {
-                    accuracyCircle.setLatLng(currentPos).setRadius(accuracy);
-                    claimRangeCircle.setLatLng(currentPos);
-                    playerMarker.setLatLng(currentPos);
-                }
-
-                if (isValid) {checkProximity(currentPos);
+                if (isValid) {
+                    checkProximity(currentPos);
                 }
             },
             (err) => {

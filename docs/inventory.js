@@ -180,15 +180,21 @@ window.InventoryUI = (function() {
                 ${GEN2_RECIPES.map(recipe => {
                     const isUnlocked = discovered.includes(recipe.id);
                     const count = crafted[recipe.id] || 0;
+                    const ingIcons = isUnlocked
+                        ? recipe.ingredients.map(k => CM.styles[k]?.icon || '').join('+')
+                        : '';
+
                     return `
                         <div class="inv-box ${isUnlocked ? 'discovered-box' : 'unknown-box'}">
                             <span class="gen-tag gen-2">2nd</span>
+                            ${isUnlocked ? `<span class="recipe-icons-corner" title="Recipe: ${recipe.ingredients.join(' + ')}">${ingIcons}</span>` : ''}
                             <div class="inv-icon">${isUnlocked ? recipe.icon : '❓'}</div>
                             <div class="inv-name">${isUnlocked ? recipe.name : 'Unknown'}</div>
                             <div class="inv-qty">${isUnlocked ? `x${count}` : '---'}</div>
                         </div>
                     `;
                 }).join('')}
+
             </div>
         `;
 
