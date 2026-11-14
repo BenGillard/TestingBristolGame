@@ -124,11 +124,6 @@ window.CollectibleManager = (function() {
             .filter(node => !saveData.claimedScheduledKeys.includes(node.id));
     }
 
-    loadLandmarkCollectibles("assets/bs_landmarks.geojson");
-    loadOsmCollectibles("assets/bs_greenery.geojson");
-    loadScheduledCollectibles("assets/scheduled_collectibles.json");
-
-
     const RECIPES = {
         masonry_block: { label: "Masonry Block", cost: { stone: 2, water: 1 } },
         reinforced_beam: { label: "Reinforced Beam", cost: { wood: 2, metal: 1 } }
@@ -148,10 +143,16 @@ window.CollectibleManager = (function() {
             crafted: {},
             discovered: [],
             claimedGlobalIds: [],
+            claimedScheduledKeys: [],
             personalCycleId: null,
             personalNodes: []
         };
     }
+
+    loadLandmarkCollectibles("assets/bs_landmarks.geojson");
+    loadOsmCollectibles("assets/bs_greenery.geojson");
+    loadScheduledCollectibles("assets/scheduled_collectibles.json");
+
 
     function persist() {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(saveData));
