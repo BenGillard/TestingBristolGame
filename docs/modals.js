@@ -12,12 +12,12 @@ window.UserAccountService = (function () {
 
     const DEFAULT_SETTINGS = {
         mode: 'dark',           // 'dark' | 'light'
-        mapTheme: 'maritime',   // 'maritime' | 'cartoon'
         showPostcodes: true,
         showCoords: true,
         haptics: true,
         wakeLock: false
     };
+
 
     // SWAP THESE ASYNC METHODS WHEN CONNECTING YOUR BACKEND DATABASE
     async function getProfile() {
@@ -83,9 +83,10 @@ window.UserAccountService = (function () {
     }
 
     function applySettingsToDOM(settings = getSettings()) {
-        // 1. Apply combined theme + light/dark mode (matches style.css rules)
-        document.body.dataset.theme = `${settings.mapTheme}-${settings.mode}`;
+        // 1. Apply light/dark mode (matches style.css rules)
         document.body.classList.toggle('light-ui', settings.mode === 'light');
+
+
 
         // 2. Toggle GPS Coordinates readout
         const coordsEl = document.getElementById('gps-coords');
@@ -110,6 +111,16 @@ window.UserAccountService = (function () {
         }
     }
 
+    function renderProfileFab(profile) {
+        const fab = document.getElementById('profile-btn');
+        if (!fab) return;
+        if (profile.avatarType === 'image' && profile.avatar) {
+            fab.innerHTML = `<img src="${profile.avatar}" alt="Profile" class="fab-avatar-img" />`;
+        } else {
+            fab.textContent = profile.avatar || '🧭';
+        }
+    }
+
     return {
         getProfile,
         saveProfile,
@@ -117,9 +128,11 @@ window.UserAccountService = (function () {
         getSettings,
         saveSettings,
         applySettingsToDOM,
-        triggerHaptic
+        triggerHaptic,
+        renderProfileFab
     };
 })();
+
 
 window.OverlaysUI = (function () {
     const AVATAR_CHOICES = ['🧭', '⛵', '🌉', '🦊', '🎈', '⚓', '🌿', '🔭'];
@@ -144,8 +157,8 @@ window.OverlaysUI = (function () {
             a: 'Open the Inventory tab, tap two 1st-Generation resources (Stone, Wood, Water, Metal) to load them into the Forge slots, and press Combine to discover 2nd-Generation items.'
         },
         {
-            q: 'Why does the 15 mph bus warning appear?',
-            a: 'To keep players safe near Bristol roads, travelling faster than 15 mph pauses claiming until you confirm you are a passenger.'
+            q: 'Why does the 20 mph bus warning appear?',
+            a: 'To keep players safe near Bristol roads, travelling faster than 20 mph pauses claiming until you confirm you are a passenger.'
         }
     ];
 
@@ -166,10 +179,33 @@ window.OverlaysUI = (function () {
         if (backdrop) backdrop.classList.remove('open');
     }
 
+    function resizeImageFile(file, maxSize = 96) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = maxSize;
+                    canvas.height = maxSize;
+                    const ctx = canvas.getContext('2d');
+                    const minSide = Math.min(img.width, img.height);
+                    ctx.drawImage(img, (img.width - minSide) / 2, (img.height - minSide) / 2, minSide, minSide, 0, 0, maxSize, maxSize);
+                    resolve(canvas.toDataURL('image/jpeg', 0.82));
+                };
+                img.onerror = reject;
+                img.src = ev.target.result;
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }
+
     async function openProfileModal() {
         const profile = await window.UserAccountService.getProfile();
         const backdrop = document.getElementById('app-modal-backdrop');
         const sheet = document.getElementById('app-modal-sheet');
+        const isCustomImage = profile.avatarType === 'image' && profile.avatar;
 
         sheet.innerHTML = `
             <div class="modal-header">
@@ -179,9 +215,22 @@ window.OverlaysUI = (function () {
 
             <div class="modal-body">
                 <label class="field-label">Profile Picture</label>
+                <div class="avatar-upload-row">
+                    <div class="avatar-preview-circle" id="avatar-preview-box">
+                        ${isCustomImage
+                            ? `<img src="${profile.avatar}" alt="Avatar preview" />`
+                            : `<span>${profile.avatar || '🧭'}</span>`}
+                    </div>
+                    <div class="avatar-upload-actions">
+                        <label for="avatar-file-input" class="upload-photo-btn">📷 Upload Photo</label>
+                        <input type="file" id="avatar-file-input" accept="image/*" hidden />
+                        <span class="field-hint">Or pick a standard icon below</span>
+                    </div>
+                </div>
+
                 <div class="avatar-picker-grid" id="avatar-picker">
                     ${AVATAR_CHOICES.map(emoji => `
-                        <button type="button" class="avatar-opt ${profile.avatar === emoji ? 'selected' : ''}" data-avatar="${emoji}">
+                        <button type="button" class="avatar-opt ${!isCustomImage && profile.avatar === emoji ? 'selected' : ''}" data-avatar="${emoji}">
                             ${emoji}
                         </button>
                     `).join('')}
@@ -213,14 +262,27 @@ window.OverlaysUI = (function () {
         backdrop.classList.add('open');
 
         let selectedAvatar = profile.avatar;
+        let selectedAvatarType = profile.avatarType || 'emoji';
+        const previewBox = document.getElementById('avatar-preview-box');
 
         document.getElementById('modal-close-x').addEventListener('click', closeModal);
+
+        document.getElementById('avatar-file-input').addEventListener('change', async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            selectedAvatar = await resizeImageFile(file, 96);
+            selectedAvatarType = 'image';
+            document.querySelectorAll('.avatar-opt').forEach(b => b.classList.remove('selected'));
+            previewBox.innerHTML = `<img src="${selectedAvatar}" alt="Avatar preview" />`;
+        });
 
         document.querySelectorAll('.avatar-opt').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.avatar-opt').forEach(b => b.classList.remove('selected'));
                 btn.classList.add('selected');
                 selectedAvatar = btn.dataset.avatar;
+                selectedAvatarType = 'emoji';
+                previewBox.innerHTML = `<span>${selectedAvatar}</span>`;
             });
         });
 
@@ -229,21 +291,21 @@ window.OverlaysUI = (function () {
             const username = rawName.length >= 2 ? rawName : 'Bristol Explorer';
             const outcode = document.getElementById('profile-outcode').value;
 
-            await window.UserAccountService.saveProfile({
+            const savedProfile = await window.UserAccountService.saveProfile({
                 username,
                 avatar: selectedAvatar,
+                avatarType: selectedAvatarType,
                 outcode
             });
 
-            // Update floating profile button icon to match chosen avatar
-            const fab = document.getElementById('profile-btn');
-            if (fab) fab.textContent = selectedAvatar;
+            window.UserAccountService.renderProfileFab(savedProfile);
 
             window.UserAccountService.triggerHaptic(30);
             const msg = document.getElementById('profile-save-msg');
             msg.textContent = 'Profile saved!';
             setTimeout(() => { msg.textContent = ''; }, 2000);
         });
+
 
         // Two-step confirmation to prevent accidental account deletion
         let confirmDeleteArmed = false;
@@ -287,17 +349,6 @@ window.OverlaysUI = (function () {
                         <button type="button" class="seg-btn ${settings.mode === 'dark' ? 'active' : ''}" data-mode="dark">🌙 Dark</button>
                         <button type="button" class="seg-btn ${settings.mode === 'light' ? 'active' : ''}" data-mode="light">☀️ Light</button>
                     </div>
-                </div>
-
-                <div class="setting-row">
-                    <div>
-                        <div class="setting-name">Map Theme</div>
-                        <div class="setting-sub">Visual style of the Bristol street map</div>
-                    </div>
-                    <select id="setting-map-theme" class="modal-select-compact">
-                        <option value="maritime" ${settings.mapTheme === 'maritime' ? 'selected' : ''}>Maritime Chart</option>
-                        <option value="cartoon" ${settings.mapTheme === 'cartoon' ? 'selected' : ''}>Cartoon Explorer</option>
-                    </select>
                 </div>
 
                 <div class="settings-group-title">Exploration Preferences</div>
@@ -358,10 +409,6 @@ window.OverlaysUI = (function () {
             });
         });
 
-        document.getElementById('setting-map-theme').addEventListener('change', (e) => {
-            window.UserAccountService.saveSettings({ mapTheme: e.target.value });
-        });
-
         document.getElementById('toggle-postcodes').addEventListener('change', (e) => {
             window.UserAccountService.saveSettings({ showPostcodes: e.target.checked });
         });
@@ -388,9 +435,10 @@ window.OverlaysUI = (function () {
         const settingsBtn = document.getElementById('settings-btn');
 
         if (profileBtn) {
-            profileBtn.textContent = profile.avatar;
+            window.UserAccountService.renderProfileFab(profile);
             profileBtn.addEventListener('click', openProfileModal);
         }
+
         if (settingsBtn) {
             settingsBtn.addEventListener('click', openSettingsModal);
         }

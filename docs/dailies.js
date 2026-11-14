@@ -30,8 +30,9 @@ window.DailiesUI = (function() {
         }
     };
 
-    let state = loadState();
+     let state = loadState();
     let todayContent = FALLBACK_CONTENT;
+    let pendingPollChoice = null;
 
     function getMidnightDateKey() {
         const now = new Date();
@@ -54,11 +55,15 @@ window.DailiesUI = (function() {
                         dateKey: todayKey,
                         streak: isConsecutive ? (parsed.streak || 0) : 0,
                         checkedIn: false,
+                        checkinRewardText: "",
                         puzzleSolved: false,
+                        puzzleRewardText: "",
                         pollVote: null,
+                        pollRewardText: "",
                         advertClaimed: false,
                         challengeProgress: 0,
-                        challengeClaimed: false
+                        challengeClaimed: false,
+                        challengeRewardText: ""
                     };
                 }
                 return parsed;
@@ -71,11 +76,15 @@ window.DailiesUI = (function() {
             dateKey: todayKey,
             streak: 0,
             checkedIn: false,
+            checkinRewardText: "",
             puzzleSolved: false,
+            puzzleRewardText: "",
             pollVote: null,
+            pollRewardText: "",
             advertClaimed: false,
             challengeProgress: 0,
-            challengeClaimed: false
+            challengeClaimed: false,
+            challengeRewardText: ""
         };
     }
 
@@ -100,7 +109,7 @@ window.DailiesUI = (function() {
 
     function awardPlayer(reward) {
         const CM = window.CollectibleManager;
-        if (!CM || !reward) return;
+        if (!CM || !reward) return "";
         CM.grantResource(reward.type, reward.amount);
 
         // Refresh top resource counters immediately
@@ -113,7 +122,10 @@ window.DailiesUI = (function() {
         if (elWood) elWood.textContent = inv.wood;
         if (elWater) elWater.textContent = inv.water;
         if (elMetal) elMetal.textContent = inv.metal;
+
+        return formatRewardBadge(reward);
     }
+
 
     // Called by game.js whenever the player claims a map cache
     function recordCacheClaim() {
@@ -155,9 +167,11 @@ window.DailiesUI = (function() {
         const container = document.getElementById('dailies-content');
         if (!container) return;
 
+        const activePollSelection = state.pollVote || pendingPollChoice;
+
         container.innerHTML = `
             <div class="dailies-stack">
-                                <!-- 1. Daily Check-In -->
+                <!-- 1. Daily Check-In -->
                 <div class="daily-card ${state.checkedIn ? 'completed' : ''}">
                     <div class="daily-card-top">
                         <span class="daily-badge">✅ Daily Check-In</span>
@@ -165,7 +179,9 @@ window.DailiesUI = (function() {
                     </div>
                     <p class="daily-desc">Log in each day after midnight to keep your Bristol explorer streak alive.</p>
                     <button class="daily-btn" id="btn-daily-checkin" ${state.checkedIn ? 'disabled' : ''}>
-                        ${state.checkedIn ? 'Checked In Today' : 'Claim Daily Check-In'}
+                        ${state.checkedIn
+                            ? `Checked In (${state.checkinRewardText || 'Reward Claimed'})`
+                            : 'Claim Daily Check-In'}
                     </button>
                 </div>
 
@@ -177,7 +193,9 @@ window.DailiesUI = (function() {
                     </div>
                     <p class="daily-desc">${todayContent.puzzle.question}</p>
                     <button class="daily-btn" id="btn-daily-puzzle" ${state.puzzleSolved ? 'disabled' : ''}>
-                        ${state.puzzleSolved ? `Solved: ${todayContent.puzzle.answer}` : 'Solve Today’s Puzzle'}
+                        ${state.puzzleSolved
+                            ? `Solved: ${todayContent.puzzle.answer} (${state.puzzleRewardText || 'Reward Claimed'})`
+                            : 'Solve Today’s Puzzle'}
                     </button>
                 </div>
 
@@ -190,12 +208,20 @@ window.DailiesUI = (function() {
                     <p class="daily-desc">${todayContent.poll.question}</p>
                     <div class="poll-options">
                         ${todayContent.poll.options.map(opt => `
-                            <button class="poll-opt-btn ${state.pollVote === opt ? 'selected' : ''}" 
+                            <button class="poll-opt-btn ${activePollSelection === opt ? 'selected' : ''}" 
                                     data-opt="${opt}" ${state.pollVote ? 'disabled' : ''}>
                                 ${opt}
                             </button>
                         `).join('')}
                     </div>
+                    <button class="daily-btn poll-submit-btn" id="btn-submit-poll"
+                            ${(state.pollVote || !pendingPollChoice) ? 'disabled' : ''}>
+                        ${state.pollVote
+                            ? `Vote Submitted (${state.pollRewardText || 'Reward Claimed'})`
+                            : pendingPollChoice
+                                ? `Submit Vote: "${pendingPollChoice}"`
+                                : 'Select an option to submit'}
+                    </button>
                 </div>
 
                 <!-- 4. Daily Advert (No Reward Button) -->
@@ -216,7 +242,7 @@ window.DailiesUI = (function() {
                     <button class="daily-btn" id="btn-daily-challenge" 
                             ${(state.challengeClaimed || state.challengeProgress < todayContent.challenge.target) ? 'disabled' : ''}>
                         ${state.challengeClaimed 
-                            ? 'Challenge Complete' 
+                            ? `Challenge Complete (${state.challengeRewardText || 'Reward Claimed'})` 
                             : state.challengeProgress >= todayContent.challenge.target 
                                 ? 'Claim Challenge Reward' 
                                 : `Progress: ${state.challengeProgress} / ${todayContent.challenge.target}`}
@@ -235,7 +261,7 @@ window.DailiesUI = (function() {
             checkinBtn.addEventListener('click', () => {
                 state.checkedIn = true;
                 state.streak += 1;
-                awardPlayer(rollRandomGen1Reward(1));
+                state.checkinRewardText = awardPlayer(rollRandomGen1Reward(1));
                 persist();
                 render();
             });
@@ -245,7 +271,7 @@ window.DailiesUI = (function() {
         if (puzzleBtn && !state.puzzleSolved) {
             puzzleBtn.addEventListener('click', () => {
                 state.puzzleSolved = true;
-                awardPlayer(rollRandomGen1Reward(1));
+                state.puzzleRewardText = awardPlayer(rollRandomGen1Reward(1));
                 persist();
                 render();
             });
@@ -254,23 +280,33 @@ window.DailiesUI = (function() {
         document.querySelectorAll('.poll-opt-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 if (state.pollVote) return;
-                state.pollVote = btn.dataset.opt;
-                awardPlayer(rollRandomGen1Reward(1));
-                persist();
+                pendingPollChoice = btn.dataset.opt;
                 render();
             });
         });
+
+        const submitPollBtn = document.getElementById('btn-submit-poll');
+        if (submitPollBtn && !state.pollVote && pendingPollChoice) {
+            submitPollBtn.addEventListener('click', () => {
+                state.pollVote = pendingPollChoice;
+                pendingPollChoice = null;
+                state.pollRewardText = awardPlayer(rollRandomGen1Reward(1));
+                persist();
+                render();
+            });
+        }
 
         const challengeBtn = document.getElementById('btn-daily-challenge');
         if (challengeBtn && !state.challengeClaimed && state.challengeProgress >= todayContent.challenge.target) {
             challengeBtn.addEventListener('click', () => {
                 state.challengeClaimed = true;
-                awardPlayer(rollRandomGen1Reward(1));
+                state.challengeRewardText = awardPlayer(rollRandomGen1Reward(1));
                 persist();
                 render();
             });
         }
     }
+
 
     // Preload external schedule once on startup
     loadScheduledContent().then(() => render());

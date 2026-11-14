@@ -8,19 +8,40 @@ window.CollectibleManager = (function() {
         metal: { label: "Metal", icon: "⚙️", color: "#e2e8f0" }
     };
 
-// Keep your handcrafted collectibles as the base list
-const GLOBAL_COLLECTIBLES = [
-    { id: "global-1", name: "Castle Park Fountain", lat: 51.4548, lng: -2.5872, type: "water", tier: "global" },
-    { id: "global-2", name: "SS Great Britain Hull", lat: 51.4484, lng: -2.6083, type: "metal", tier: "global" },
-    { id: "global-3", name: "Clifton Suspension Bridge Pier", lat: 51.4549, lng: -2.6279, type: "stone", tier: "global" },
-    { id: "global-4", name: "Gloucester Road Timber", lat: 51.4772, lng: -2.5891, type: "wood", tier: "global" },
-    { id: "global-bs5-1", name: "St George Park Lake", lat: 51.4589, lng: -2.5486, type: "water", tier: "global" },
-    { id: "global-bs5-2", name: "Trooper's Hill Chimney", lat: 51.4517, lng: -2.5364, type: "stone", tier: "global" },
-    { id: "global-bs5-3", name: "Church Road Redfest Oak", lat: 51.4581, lng: -2.5562, type: "wood", tier: "global" },
-    { id: "global-bs5-4", name: "Netham Park Railings", lat: 51.4512, lng: -2.5588, type: "metal", tier: "global" }
-];
+    const GLOBAL_COLLECTIBLES = [];
+    let SCHEDULED_COLLECTIBLES = [];
 
-// Fetch and append the GeoJSON data
+    async function loadLandmarkCollectibles(geoJsonUrl) {
+        try {
+            const response = await fetch(geoJsonUrl);
+            if (!response.ok) return;
+            const geojson = await response.json();
+
+            const landmarkNodes = (geojson.features || [])
+                .filter(f => f.geometry?.type === "Point" && f.properties?.name)
+                .map((feature, idx) => {
+                    const props = feature.properties;
+                    const [lng, lat] = feature.geometry.coordinates;
+                    return {
+                        id: props.id || `landmark-${idx + 1}`,
+                        name: props.name,
+                        lat: lat,
+                        lng: lng,
+                        type: RESOURCE_STYLES[props.resourceType] ? props.resourceType : "stone",
+                        tier: "global",
+                        isLandmark: true,
+                        funFact: props.funFact || "",
+                        attribution: props.attribution || "OpenStreetMap"
+                    };
+                });
+
+            GLOBAL_COLLECTIBLES.push(...landmarkNodes);
+            window.dispatchEvent(new Event('osmCollectiblesLoaded'));
+        } catch (error) {
+            console.error("Failed to load landmark GeoJSON:", error);
+        }
+    }
+
     async function loadOsmCollectibles(geoJsonUrl) {
         try {
             const response = await fetch(geoJsonUrl);
@@ -32,7 +53,6 @@ const GLOBAL_COLLECTIBLES = [
                     if (!props.name || props.access === "private" || feature.geometry?.type !== "Point") {
                         return false;
                     }
-                    // Keep ~30% of green spaces so Wood stays balanced with Stone/Water/Metal
                     const idHash = String(feature.id || props.name)
                         .split('')
                         .reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
@@ -47,7 +67,8 @@ const GLOBAL_COLLECTIBLES = [
                         lat: lat,
                         lng: lng,
                         type: "wood",
-                        tier: "global"
+                        tier: "global",
+                        isGreenery: true
                     };
                 });
 
@@ -58,7 +79,54 @@ const GLOBAL_COLLECTIBLES = [
         }
     }
 
-loadOsmCollectibles("assets/bs_greenery.geojson");
+    async function loadScheduledCollectibles(jsonUrl) {
+        try {
+            const response = await fetch(jsonUrl);
+            if (!response.ok) return;
+            const data = await response.json();
+            SCHEDULED_COLLECTIBLES = Array.isArray(data.events) ? data.events : [];
+            window.dispatchEvent(new Event('osmCollectiblesLoaded'));
+        } catch (error) {
+            console.error("Failed to load scheduled collectibles:", error);
+        }
+    }
+
+    function isScheduledEventActive(event, now = new Date()) {
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        const [startH, startM] = String(event.startTime || "08:00").split(":").map(Number);
+        const [endH, endM] = String(event.endTime || "10:00").split(":").map(Number);
+
+        if (currentMinutes < (startH * 60 + (startM || 0)) || currentMinutes >= (endH * 60 + (endM || 0))) {
+            return false;
+        }
+        if (event.schedule === "weekly") return now.getDay() === Number(event.dayOfWeek);
+        if (event.schedule === "monthly") return now.getDate() === Number(event.dayOfMonth);
+        return false;
+    }
+
+    function getActiveScheduledNodes() {
+        const now = new Date();
+        const datePart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        if (!saveData.claimedScheduledKeys) saveData.claimedScheduledKeys = [];
+
+        return SCHEDULED_COLLECTIBLES
+            .filter(ev => isScheduledEventActive(ev, now))
+            .map(ev => ({
+                id: `${ev.id}-${datePart}`,
+                name: ev.name,
+                lat: ev.lat,
+                lng: ev.lng,
+                type: RESOURCE_STYLES[ev.resourceType] ? ev.resourceType : "metal",
+                tier: "global",
+                isScheduled: true,
+                scheduleLabel: ev.scheduleLabel || `Active ${ev.startTime}–${ev.endTime}`
+            }))
+            .filter(node => !saveData.claimedScheduledKeys.includes(node.id));
+    }
+
+    loadLandmarkCollectibles("assets/bs_landmarks.geojson");
+    loadOsmCollectibles("assets/bs_greenery.geojson");
+    loadScheduledCollectibles("assets/scheduled_collectibles.json");
 
 
     const RECIPES = {
@@ -133,13 +201,17 @@ loadOsmCollectibles("assets/bs_greenery.geojson");
         ensureDailySpawns();
         return [
             ...GLOBAL_COLLECTIBLES.filter(n => !saveData.claimedGlobalIds.includes(n.id)),
+            ...getActiveScheduledNodes(),
             ...saveData.personalNodes.filter(n => !n.claimed)
         ];
     }
 
     function claimNode(node) {
         saveData.inventory[node.type] = (saveData.inventory[node.type] || 0) + 1;
-        if (node.tier === "global") {
+        if (node.isScheduled) {
+            if (!saveData.claimedScheduledKeys) saveData.claimedScheduledKeys = [];
+            saveData.claimedScheduledKeys.push(node.id);
+        } else if (node.tier === "global") {
             saveData.claimedGlobalIds.push(node.id);
         } else {
             const target = saveData.personalNodes.find(n => n.id === node.id);
@@ -148,6 +220,7 @@ loadOsmCollectibles("assets/bs_greenery.geojson");
         persist();
         return RESOURCE_STYLES[node.type];
     }
+
 
     function grantResource(type, amount = 1) {
         if (!RESOURCE_STYLES[type]) return null;

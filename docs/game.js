@@ -10,8 +10,8 @@ const PLAYER_PULSE_RADIUS = 25;    // 50m diameter pulsing ring around player
 const GLOBAL_NODE_RADIUS = 40;     // 80m diameter for Global landmarks (increase as desired)
 const PERSONAL_NODE_RADIUS = 30;   // 60m diameter for Personal spawns (increase as desired)
 
-// Safety & Anti-Cheat Constants (15 mph = 6.7056 m/s)
-const MAX_WALKING_SPEED_MPS = 6.71; 
+// Safety & Anti-Cheat Constants (20 mph = 8.94 m/s)
+const MAX_WALKING_SPEED_MPS = 8.94; 
 const TELEPORT_SPEED_MPS = 45.0; // ~100 mph (flags obvious spoofing)
 
 let lastValidFix = null; // { latlng: L.LatLng, timestamp: number }
@@ -37,7 +37,7 @@ function initSafetyOverlay() {
         <div style="font-size: 42px; margin-bottom: 12px;">🚌</div>
         <h2 style="color: #ffb703; margin-bottom: 10px;">Moving Fast!</h2>
         <p style="max-width: 320px; line-height: 1.5; margin-bottom: 20px;">
-            You're travelling over 15 mph. Are you on the bus? Confirm you are a passenger to keep exploring safely.
+            You're travelling over 20 mph. Are you on the bus? Confirm you are a passenger to keep exploring safely.
         </p>
         <button id="confirm-passenger-btn" style="
             padding: 12px 24px; background: #00b4d8; color: #0d1b2a;
@@ -232,10 +232,29 @@ window.addEventListener('load', () => {
 
     const collectiblesLayer = L.layerGroup().addTo(map);
 
+    function buildNodePopupHtml(node) {
+        if (node.isGreenery) {
+            return `<b>🌲 Wood Cache</b><br>${node.name}<br><i>Walk within 25m to claim!</i>`;
+        }
+        if (node.isScheduled) {
+            return `<b>🏃 Timed Event Cache</b><br>${node.name}<br><small>${node.scheduleLabel}</small><br><i>Walk within 25m to claim!</i>`;
+        }
+        if (node.isLandmark) {
+            const factBlock = node.funFact
+                ? `<div class="popup-fun-fact"><strong>Did you know?</strong> ${node.funFact}<br><span class="popup-attr">Source: ${node.attribution || 'OpenStreetMap'}</span></div>`
+                : '';
+            return `<b>❓ Mystery Cache</b><br>${node.name}<br><i>Walk within 25m to claim!</i>${factBlock}`;
+        }
+        const isGlobal = node.tier === "global";
+        return `<b>❓ Mystery Cache</b><br>${isGlobal ? node.name : 'Daily Personal Spawn'}<br><i>Walk within 25m to claim!</i>`;
+    }
+
     function renderAllNodes() {
         collectiblesLayer.clearLayers();
-        const cycleId = CM.ensureDailySpawns();
-        refreshDisplay.textContent = `Cycle: ${cycleId} (Resets Midnight Local)`;
+        CM.ensureDailySpawns();
+        if (refreshDisplay) {
+            refreshDisplay.textContent = "Resets Midnight Local";
+        }
 
         // Expand visible screen bounds slightly (20%) so nodes don't pop in abruptly while panning
         const visibleBounds = map.getBounds().pad(0.2);
@@ -245,17 +264,29 @@ window.addEventListener('load', () => {
             if (!visibleBounds.contains([node.lat, node.lng])) return;
 
             const isGlobal = node.tier === "global";
+            let strokeColor = isGlobal ? '#ffb703' : '#00b4d8';
+            let fillColor = isGlobal ? '#ffb703' : '#00b4d8';
+            let fillOpacity = isGlobal ? 0.50 : 0.30;
 
-            // Mystery appearance: neutral cyan/gold ring until claimed
+            if (node.isGreenery) {
+                strokeColor = '#22c55e';
+                fillColor = '#22c55e';
+                fillOpacity = 0.45;
+            } else if (node.isScheduled) {
+                strokeColor = '#ec4899';
+                fillColor = '#ec4899';
+                fillOpacity = 0.55;
+            }
+
             L.circle([node.lat, node.lng], {
                 radius: isGlobal ? GLOBAL_NODE_RADIUS : PERSONAL_NODE_RADIUS,
-                color: isGlobal ? '#ffb703' : '#00b4d8',
-                fillColor: isGlobal ? '#ffb703' : '#00b4d8',
-                fillOpacity: isGlobal ? 0.50 : 0.30,
+                color: strokeColor,
+                fillColor: fillColor,
+                fillOpacity: fillOpacity,
                 dashArray: isGlobal ? null : '4, 4',
                 weight: isGlobal ? 3 : 2
             })
-            .bindPopup(`<b>❓ Mystery Cache</b><br>${isGlobal ? 'Global Landmark' : 'Daily Personal Spawn'}<br><i>Walk within 25m to claim!</i>`)
+            .bindPopup(buildNodePopupHtml(node))
             .addTo(collectiblesLayer);
         });
     }
@@ -319,15 +350,10 @@ window.addEventListener('load', () => {
             nearbyNode = closest;
             statusDisplay.textContent = `Cache in Reach: ${closest.name}`;
             statusDisplay.style.color = "#ffb703";
-            claimBtn.textContent = `Claim Mystery Cache`;
+            claimBtn.textContent = closest.isGreenery ? `Claim Wood Cache` : `Claim Mystery Cache`;
             claimBtn.style.display = "block";
-        } else {
-            nearbyNode = null;
-            claimBtn.style.display = "none";
-            statusDisplay.textContent = "GPS Connected — Exploring Bristol";
-            statusDisplay.style.color = "#4ad66d";
         }
-    }
+
 
 
     function validateMovement(currentPos, timestamp, coords) {

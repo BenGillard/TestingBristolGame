@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "description": "Weekly and monthly scheduled timed collectibles across Bristol",
+  "events": [
+    {
+      "id": "parkrun-ashton-court",
+      "name": "Ashton Court parkrun Cache",
+      "lat": 51.4456,
+      "lng": -2.6345,
+      "resourceType": "metal",
+      "schedule": "weekly",
+      "dayOfWeek": 6,
+      "startTime": "08:00",
+      "endTime": "10:00",
+      "scheduleLabel": "Saturdays 08:00–10:00 (parkrun)"
+    },
+    {
+      "id": "parkrun-eastville",
+      "name": "Eastville parkrun Cache",
+      "lat": 51.4735,
+      "lng": -2.5612,
+      "resourceType": "water",
+      "schedule": "weekly",
+      "dayOfWeek": 6,
+      "startTime": "08:00",
+      "endTime": "10:00",
+      "scheduleLabel": "Saturdays 08:00–10:00 (parkrun)"
+    },
+    {
+      "id": "parkrun-blaise-castle",
+      "name": "Blaise Castle parkrun Cache",
+      "lat": 51.4988,
+      "lng": -2.6378,
+      "resourceType": "wood",
+      "schedule": "weekly",
+      "dayOfWeek": 6,
+      "startTime": "08:00",
+      "endTime": "10:00",
+      "scheduleLabel": "Saturdays 08:00–10:00 (parkrun)"
+    },
+    {
+      "id": "parkrun-pomphrey-hill",
+      "name": "Pomphrey Hill parkrun Cache",
+      "lat": 51.4793,
+      "lng": -2.4871,
+      "resourceType": "stone",
+      "schedule": "weekly",
+      "dayOfWeek": 6,
+      "startTime": "08:00",
+      "endTime": "10:00",
+      "scheduleLabel": "Saturdays 08:00–10:00 (parkrun)"
+    },
+    {
+      "id": "parkrun-somerdale-pavilion",
+      "name": "Somerdale Pavilion parkrun Cache",
+      "lat": 51.4198,
+      "lng": -2.4955,
+      "resourceType": "water",
+      "schedule": "weekly",
+      "dayOfWeek": 6,
+      "startTime": "08:00",
+      "endTime": "10:00",
+      "scheduleLabel": "Saturdays 08:00–10:00 (parkrun)"
+    },
+    {
+      "id": "parkrun-chipping-sodbury",
+      "name": "Chipping Sodbury parkrun Cache",
+      "lat": 51.5457,
+      "lng": -2.3932,
+      "resourceType": "wood",
+      "schedule": "weekly",
+      "dayOfWeek": 6,
+      "startTime": "08:00",
+      "endTime": "10:00",
+      "scheduleLabel": "Saturdays 08:00–10:00 (parkrun)"
+    },
+    {
+      "id": "parkrun-clevedon",
+      "name": "Clevedon Salthouse Fields parkrun Cache",
+      "lat": 51.4384,
+      "lng": -2.8669,
+      "resourceType": "water",
+      "schedule": "weekly",
+      "dayOfWeek": 6,
+      "startTime": "08:00",
+      "endTime": "10:00",
+      "scheduleLabel": "Saturdays 08:00–10:00 (parkrun)"
+    }
+  ]
+}

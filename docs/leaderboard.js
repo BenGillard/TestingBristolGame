@@ -88,10 +88,12 @@ window.LeaderboardUI = (function() {
             {
                 username: profile.username,
                 avatar: profile.avatar,
+                avatarType: profile.avatarType || 'emoji',
                 postcode: userOutcode,
                 total: localTotal,
                 isCurrentUser: true
             }
+
         ]
             .sort((a, b) => b.total - a.total)
             .map((entry, idx) => ({ ...entry, rank: idx + 1 }));
@@ -165,20 +167,27 @@ window.LeaderboardUI = (function() {
     }
 
     function renderPlayerRows(rows) {
-        return rows.map(row => `
-            <div class="lb-row ${row.isCurrentUser ? 'highlight-row' : ''}">
-                <div class="lb-rank">#${row.rank}</div>
-                <div class="lb-info">
-                    <div class="lb-primary">${row.avatar ? `${row.avatar} ` : ''}${escapeHtml(row.username)}${row.isCurrentUser ? ' (You)' : ''}</div>
-                    <div class="lb-secondary">District: ${escapeHtml(row.postcode)}</div>
+        return rows.map(row => {
+            const isImg = row.avatarType === 'image' || String(row.avatar || '').startsWith('data:image/');
+            const avatarHtml = row.avatar
+                ? (isImg ? `<img src="${row.avatar}" alt="" class="lb-avatar-img" /> ` : `${escapeHtml(row.avatar)} `)
+                : '';
+            return `
+                <div class="lb-row ${row.isCurrentUser ? 'highlight-row' : ''}">
+                    <div class="lb-rank">#${row.rank}</div>
+                    <div class="lb-info">
+                        <div class="lb-primary">${avatarHtml}${escapeHtml(row.username)}${row.isCurrentUser ? ' (You)' : ''}</div>
+                        <div class="lb-secondary">District: ${escapeHtml(row.postcode)}</div>
+                    </div>
+                    <div class="lb-score">
+                        <span class="lb-score-num">${row.total.toLocaleString()}</span>
+                        <span class="lb-score-label">items</span>
+                    </div>
                 </div>
-                <div class="lb-score">
-                    <span class="lb-score-num">${row.total.toLocaleString()}</span>
-                    <span class="lb-score-label">items</span>
-                </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     }
+
 
     window.addEventListener('profileUpdated', render);
 
