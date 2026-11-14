@@ -352,11 +352,16 @@ window.addEventListener('load', () => {
             statusDisplay.style.color = "#ffb703";
             claimBtn.textContent = closest.isGreenery ? `Claim Wood Cache` : `Claim Mystery Cache`;
             claimBtn.style.display = "block";
+        } else {
+            nearbyNode = null;
+            claimBtn.style.display = "none";
+            statusDisplay.textContent = "GPS Connected — Exploring Bristol";
+            statusDisplay.style.color = "#4ad66d";
         }
-
-
+    }
 
     function validateMovement(currentPos, timestamp, coords) {
+
         // 1. Check browser mock location flag
         if (coords.mocked === true) {
             statusDisplay.style.color = "#e63946";

@@ -268,8 +268,9 @@ window.OverlaysUI = (function () {
         document.getElementById('modal-close-x').addEventListener('click', closeModal);
 
         document.getElementById('avatar-file-input').addEventListener('change', async (e) => {
-            const file = e.target.files?.[0];
+            const file = e.target.files && e.target.files[0];
             if (!file) return;
+
             selectedAvatar = await resizeImageFile(file, 96);
             selectedAvatarType = 'image';
             document.querySelectorAll('.avatar-opt').forEach(b => b.classList.remove('selected'));
