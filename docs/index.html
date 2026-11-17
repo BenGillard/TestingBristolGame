@@ -12,6 +12,19 @@
     <!-- Self-Hosted Leaflet CSS -->
     <link rel="stylesheet" href="lib/leaflet/leaflet.css" />
     <link rel="stylesheet" href="style.css" />
+
+    <!-- Error hunter -->
+    <script>
+    window.addEventListener('error', function(e) {
+    const msg = e.message || (e.target && e.target.src ? '404 Missing File: ' + e.target.src : 'Unknown error');
+    const file = e.filename ? e.filename.split('/').pop() : '';
+    const div = document.createElement('div');
+    div.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:999999;background:#b91c1c;color:#fff;padding:10px;font-family:monospace;font-size:12px;word-break:break-all;';
+    div.textContent = `ERR [${file}:${e.lineno || '?'}]: ${msg}`;
+    document.documentElement.appendChild(div);
+    }, true);
+    </script>
+
 </head>
 <body>
 
