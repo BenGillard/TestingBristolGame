@@ -119,40 +119,7 @@ window.InventoryUI = (function() {
 
         render();
     }
-
-
-        // Sort ingredients alphabetically so order doesn't matter (wood+water === water+wood)
-        const sortedAttempt = [...forgeSlots].sort();
-        const match = GEN2_RECIPES.find(recipe => {
-            const sortedRecipe = [...recipe.ingredients].sort();
-            return sortedRecipe[0] === sortedAttempt[0] && sortedRecipe[1] === sortedAttempt[1];
-        });
-
-        if (match) {
-            const paid = CM.consumeResources(costMap);
-            if (!paid) {
-                forgeMessage = "Insufficient resources!";
-                forgeStatusType = "fail";
-            } else {
-                const isNewDiscovery = !CM.getDiscovered().includes(match.id);
-                CM.addCraftedItem(match.id);
-                forgeMessage = isNewDiscovery
-                    ? `✨ New Discovery! You created ${match.icon} ${match.name}!`
-                    : `Created +1 ${match.icon} ${match.name}!`;
-                forgeStatusType = "success";
-                forgeSlots = [null, null];
-                updateTopBar();
-            }
-        } else {
-            // Failed experiment does not destroy resources — encourages safe experimentation
-            forgeMessage = "Nothing happened... try a different combination!";
-            forgeStatusType = "fail";
-            forgeSlots = [null, null];
-        }
-
-        render();
-    }
-
+    
     function render() {
         const CM = window.CollectibleManager;
         const container = document.getElementById('inventory-content');
