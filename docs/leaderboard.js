@@ -42,10 +42,15 @@ window.LeaderboardUI = (function() {
     }
 
     async function fetchLeaderboardData() {
-        const localTotal = getLocalPlayerTotal();
-        const profile = window.UserAccountService
-            ? await window.UserAccountService.getProfile()
-            : { username: "Bristol Explorer", avatar: "🧭", outcode: "BS5" };
+        let profile = { username: "Bristol Explorer", avatar: "🧭", outcode: "BS5" };
+        try {
+            if (window.UserAccountService && window.UserAccountService.getProfile) {
+                const loaded = await window.UserAccountService.getProfile();
+                if (loaded) profile = loaded;
+            }
+        } catch (err) {
+            console.warn("Using default profile for leaderboard:", err.message);
+        }
 
         const userOutcode = profile.outcode || "BS5";
 
@@ -81,9 +86,9 @@ window.LeaderboardUI = (function() {
             }
         }
 
-        // Keep your existing mock fallback array here when offline
         return { isLiveBackend: false, profile, postcodes: [], players: [] };
     }
+
 
 
     async function render() {

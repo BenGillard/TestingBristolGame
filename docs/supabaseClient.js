@@ -14,12 +14,12 @@ window.showDebugError = function(step, err) {
 const SUPABASE_URL = 'https://ghqdlwazhfvyayanlhli.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_NL8Kv6zmsxwoEV7z1e2tGg_78_R0Pnk';
 
-let sb = null;
+window.sb = window.sb || null;
 try {
   if (!window.supabase) {
     throw new Error('window.supabase is undefined (CDN script failed to load)');
   }
-  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  windowsb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 } catch (err) {
   window.showDebugError('1. Client Init', err);
 }
