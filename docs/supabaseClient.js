@@ -11,7 +11,7 @@ window.showDebugError = function(step, err) {
   banner.innerHTML += `<div><strong>FAIL [${step}]:</strong> ${err?.message || err}</div>`;
 };
 
-const SUPABASE_URL = 'https://ghqdlwazhfvyayanlhli.supabase.co/rest/v1/';
+const SUPABASE_URL = 'https://ghqdlwazhfvyayanlhli.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_NL8Kv6zmsxwoEV7z1e2tGg_78_R0Pnk';
 
 let sb = null;
@@ -23,10 +23,6 @@ try {
 } catch (err) {
   window.showDebugError('1. Client Init', err);
 }
-
-
-// Initialise the global client
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const GameAPI = {
   // Local storage keys for offline caching & action queuing
@@ -263,3 +259,5 @@ document.addEventListener('visibilitychange', () => {
     GameAPI.getTodaySchedule(); // Refresh if Bristol midnight passed while asleep
   }
 });
+
+window.GameAPI = GameAPI;

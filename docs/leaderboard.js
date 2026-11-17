@@ -131,6 +131,9 @@ window.LeaderboardUI = (function() {
     }
 
     function renderPostcodeRows(rows) {
+        if (!rows || rows.length === 0) {
+            return `<div class="placeholder-card">No registered BS residents on the board yet — open your Profile (👤) to claim your district!</div>`;
+        }
         return rows.map(row => `
             <div class="lb-row ${row.isUserDistrict ? 'highlight-row' : ''}">
                 <div class="lb-rank">#${row.rank}</div>
@@ -147,6 +150,9 @@ window.LeaderboardUI = (function() {
     }
 
     function renderPlayerRows(rows) {
+        if (!rows || rows.length === 0) {
+            return `<div class="placeholder-card">No ranked explorers yet — register as a Resident in your Profile (👤) to appear here!</div>`;
+        }
         return rows.map(row => {
             const isImg = row.avatarType === 'image' || String(row.avatar || '').startsWith('data:image/');
             const avatarHtml = row.avatar
