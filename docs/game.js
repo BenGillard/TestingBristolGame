@@ -166,6 +166,41 @@ window.addEventListener('load', async () => {
         return;
     }
 
+    // Debugging helper banner for Supabase errors (if supabaseClient.js failed to load)
+if (!window.GameAPI) {
+    if (window.showDebugError) window.showDebugError('0. Script Load', 'supabaseClient.js did not load');
+} else {
+    try {
+        const user = await window.GameAPI.initSession();
+        if (!user) throw new Error('Anonymous sign-in returned no user (check Supabase Auth settings)');
+    } catch (err) {
+        window.showDebugError('2. Auth Session', err);
+    }
+
+    try {
+        if (window.CollectibleManager?.syncFromServer) {
+            await window.CollectibleManager.syncFromServer();
+        }
+    } catch (err) {
+        window.showDebugError('3. Inventory Sync', err);
+    }
+
+    try {
+        if (window.DailiesUI?.loadScheduledContent) {
+            await window.DailiesUI.loadScheduledContent();
+            window.DailiesUI.render();
+        }
+    } catch (err) {
+        window.showDebugError('4. Daily Schedule', err);
+    }
+}
+
+// Also check if InventoryUI loaded properly
+if (!window.InventoryUI) {
+    if (window.showDebugError) window.showDebugError('5. InventoryUI', 'inventory.js crashed (check for syntax error)');
+}
+
+
     // 1. Boot Supabase session & sync server state first
     if (window.GameAPI) {
         await window.GameAPI.initSession();
