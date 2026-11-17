@@ -41,7 +41,6 @@ window.LeaderboardUI = (function() {
         return gen1Total + gen2Total;
     }
 
-    // Replace this mock loader with your live backend API call (e.g., Supabase) later
     async function fetchLeaderboardData() {
         const localTotal = getLocalPlayerTotal();
         const profile = window.UserAccountService
@@ -49,62 +48,43 @@ window.LeaderboardUI = (function() {
             : { username: "Bristol Explorer", avatar: "🧭", outcode: "BS5" };
 
         const userOutcode = profile.outcode || "BS5";
-        const isVisitor = userOutcode === "Visitor";
 
-        const basePostcodes = [
-            { code: "BS5", name: BS_AREA_NAMES.BS5, players: 42, total: 1280 },
-            { code: "BS8", name: BS_AREA_NAMES.BS8, players: 38, total: 1195 },
-            { code: "BS1", name: BS_AREA_NAMES.BS1, players: 51, total: 1140 },
-            { code: "BS7", name: BS_AREA_NAMES.BS7, players: 29, total: 960 },
-            { code: "BS3", name: BS_AREA_NAMES.BS3, players: 34, total: 890 }
-        ];
+        if (window.GameAPI && navigator.onLine) {
+            try {
+                const [rawOutcodes, rawPlayers] = await Promise.all([
+                    window.GameAPI.getOutcodeLeaderboard(),
+                    window.GameAPI.getIndividualLeaderboard()
+                ]);
 
-        // Add user's selected BS outcode to preview rankings if not already in the top 5
-        if (!isVisitor && !basePostcodes.some(p => p.code === userOutcode)) {
-            basePostcodes.push({
-                code: userOutcode,
-                name: BS_AREA_NAMES[userOutcode] || "Bristol District",
-                players: 18,
-                total: 740
-            });
+                const postcodes = rawOutcodes.map((row, idx) => ({
+                    rank: idx + 1,
+                    code: row.outcode,
+                    name: BS_AREA_NAMES[row.outcode] || "Bristol District",
+                    players: row.active_residents,
+                    total: row.total_points,
+                    isUserDistrict: row.outcode === userOutcode
+                }));
+
+                const players = rawPlayers.map((row, idx) => ({
+                    rank: idx + 1,
+                    username: row.username,
+                    avatar: row.avatar || "🧭",
+                    avatarType: row.avatar_type || "emoji",
+                    postcode: row.outcode || "Visitor",
+                    total: row.total_discovered,
+                    isCurrentUser: row.username === profile.username
+                }));
+
+                return { isLiveBackend: true, profile, postcodes, players };
+            } catch (err) {
+                console.warn("Leaderboard fetch failed, showing offline preview:", err.message);
+            }
         }
 
-        const postcodes = basePostcodes
-            .map(district => {
-                const isUserDistrict = !isVisitor && district.code === userOutcode;
-                return {
-                    ...district,
-                    total: isUserDistrict ? district.total + localTotal : district.total,
-                    isUserDistrict
-                };
-            })
-            .sort((a, b) => b.total - a.total)
-            .map((entry, idx) => ({ ...entry, rank: idx + 1 }));
-
-        const players = [
-            { username: "BrunelWalker", avatar: "🌉", postcode: "BS8", total: 148, isCurrentUser: false },
-            { username: "AvonScout", avatar: "⛵", postcode: "BS1", total: 132, isCurrentUser: false },
-            { username: "CabotRunner", avatar: "🔭", postcode: "BS7", total: 119, isCurrentUser: false },
-            {
-                username: profile.username,
-                avatar: profile.avatar,
-                avatarType: profile.avatarType || 'emoji',
-                postcode: userOutcode,
-                total: localTotal,
-                isCurrentUser: true
-            }
-
-        ]
-            .sort((a, b) => b.total - a.total)
-            .map((entry, idx) => ({ ...entry, rank: idx + 1 }));
-
-        return {
-            isLiveBackend: false,
-            profile,
-            postcodes,
-            players
-        };
+        // Keep your existing mock fallback array here when offline
+        return { isLiveBackend: false, profile, postcodes: [], players: [] };
     }
+
 
     async function render() {
         const container = document.getElementById('leaderboard-content');

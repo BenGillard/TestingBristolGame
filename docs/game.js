@@ -159,13 +159,26 @@ function showClaimReveal(style) {
 }
 
 
-window.addEventListener('load', () => {
+window.addEventListener('load', async () => {
     if (typeof L === 'undefined' || !window.CollectibleManager) {
         statusDisplay.style.color = "#e63946";
         statusDisplay.textContent = "Missing Leaflet or CollectibleManager script.";
         return;
     }
 
+    // 1. Boot Supabase session & sync server state first
+    if (window.GameAPI) {
+        await window.GameAPI.initSession();
+        if (window.CollectibleManager.syncFromServer) {
+            await window.CollectibleManager.syncFromServer();
+        }
+        if (window.DailiesUI && window.DailiesUI.loadScheduledContent) {
+            await window.DailiesUI.loadScheduledContent();
+            window.DailiesUI.render();
+        }
+    }
+
+    // 2. Continue with your existing map & UI setup
     initSafetyOverlay();
     requestCompassAccess();
     initRevealOverlay();
@@ -313,19 +326,31 @@ window.addEventListener('load', () => {
     }
 
 
-    claimBtn.addEventListener('click', () => {
-        if (!nearbyNode) return;
-        const style = CM.claimNode(nearbyNode);
-        statusDisplay.textContent = `Claimed +1 ${style.icon} ${style.label}!`;
-        statusDisplay.style.color = "#4ad66d";
-        nearbyNode = null;
-        claimBtn.style.display = "none";
+        claimBtn.addEventListener('click', async () => {
+            if (!nearbyNode) return;
+            const claimedNode = nearbyNode;
+            const style = CM.claimNode(claimedNode);
 
-        if (window.DailiesUI) window.DailiesUI.recordCacheClaim();
-        showClaimReveal(style);
-        updateInventoryUI();
-        renderAllNodes();
-    });
+            statusDisplay.textContent = `Claimed +1 ${style.icon} ${style.label}!`;
+            statusDisplay.style.color = "#4ad66d";
+            nearbyNode = null;
+            claimBtn.style.display = "none";
+
+            if (window.DailiesUI) window.DailiesUI.recordCacheClaim();
+            showClaimReveal(style);
+            updateInventoryUI();
+            renderAllNodes();
+
+            // Sync claim to Supabase with current GPS coordinates
+            if (window.GameAPI && latestPos) {
+                try {
+                    await window.GameAPI.claimCollectible(claimedNode.type, latestPos.lat, latestPos.lng);
+                } catch (err) {
+                    console.warn('Server claim validation warning:', err.message);
+                }
+            }
+        });
+
 
     function checkProximity(currentPos) {
         let closest = null;

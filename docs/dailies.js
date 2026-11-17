@@ -146,20 +146,43 @@ window.DailiesUI = (function() {
 
 
 
-    // Fetch queued daily content keyed by YYYY-MM-DD from external JSON
+    // Fetch queued daily content keyed by YYYY-MM-DD from supabase RPC, or fallback to built-in content if offline or error
     async function loadScheduledContent() {
-        const todayKey = getMidnightDateKey();
+        if (!window.GameAPI) return;
         try {
-            const res = await fetch(`data/daily_schedule.json?v=${todayKey}`);
-            if (!res.ok) return;
-            const schedule = await res.json();
-            if (schedule[todayKey]) {
-                todayContent = { ...FALLBACK_CONTENT, ...schedule[todayKey] };
+            const row = await window.GameAPI.getTodaySchedule();
+            if (!row) return;
+
+            todayContent = {
+                ...FALLBACK_CONTENT,
+                puzzle: {
+                    question: row.puzzle_question,
+                    answer: row.puzzle_options?.[row.puzzle_answer_index] || "Solved",
+                    reward: { type: "stone", amount: 1 }
+                },
+                poll: row.poll_question ? {
+                    question: row.poll_question,
+                    options: row.poll_options || [],
+                    reward: { type: "water", amount: 1 }
+                } : null,
+                challenge: {
+                    title: "Daily Bristol Challenge",
+                    description: row.challenge_text,
+                    target: 3,
+                    reward: { type: "metal", amount: 1 }
+                },
+                bulletinHtml: row.bulletin_html || ""
+            };
+
+            // Pass daily bulletin HTML straight to BulletinUI
+            if (window.BulletinUI && window.BulletinUI.setDailyBulletin) {
+                window.BulletinUI.setDailyBulletin(row.bulletin_html);
             }
-        } catch (_) {
-            // Offline or no schedule file yet — keep FALLBACK_CONTENT
+        } catch (err) {
+            console.warn("Using offline fallback dailies:", err.message);
         }
     }
+
 
     function render() {
         // Re-check midnight rollover every time the tab opens

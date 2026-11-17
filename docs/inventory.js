@@ -64,15 +64,62 @@ window.InventoryUI = (function() {
         render();
     }
 
-    function attemptCombine() {
+    async function attemptCombine() {
         const CM = window.CollectibleManager;
         if (!CM || !forgeSlots[0] || !forgeSlots[1]) return;
 
-        // Build cost map (handles both distinct pairs and double-resource pairs)
         const costMap = {};
         forgeSlots.forEach(key => {
             costMap[key] = (costMap[key] || 0) + 1;
         });
+
+        const sortedAttempt = [...forgeSlots].sort();
+        const match = GEN2_RECIPES.find(recipe => {
+            const sortedRecipe = [...recipe.ingredients].sort();
+            return sortedRecipe[0] === sortedAttempt[0] && sortedRecipe[1] === sortedAttempt[1];
+        });
+
+        if (match) {
+            // Check local balance first for instant feedback
+            const inv = CM.getInventory();
+            const hasEnough = Object.entries(costMap).every(([k, qty]) => (inv[k] || 0) >= qty);
+            if (!hasEnough) {
+                forgeMessage = "Insufficient resources!";
+                forgeStatusType = "fail";
+                render();
+                return;
+            }
+
+            // Validate & execute atomically on Supabase if online
+            if (window.GameAPI && navigator.onLine) {
+                try {
+                    await window.GameAPI.craftForgeItem(match.id);
+                } catch (err) {
+                    forgeMessage = err.message || "Forge sync failed.";
+                    forgeStatusType = "fail";
+                    render();
+                    return;
+                }
+            }
+
+            CM.consumeResources(costMap);
+            const isNewDiscovery = !CM.getDiscovered().includes(match.id);
+            CM.addCraftedItem(match.id);
+            forgeMessage = isNewDiscovery
+                ? `✨ New Discovery! You created ${match.icon} ${match.name}!`
+                : `Created +1 ${match.icon} ${match.name}!`;
+            forgeStatusType = "success";
+            forgeSlots = [null, null];
+            updateTopBar();
+        } else {
+            forgeMessage = "Nothing happened... try a different combination!";
+            forgeStatusType = "fail";
+            forgeSlots = [null, null];
+        }
+
+        render();
+    }
+
 
         // Sort ingredients alphabetically so order doesn't matter (wood+water === water+wood)
         const sortedAttempt = [...forgeSlots].sort();

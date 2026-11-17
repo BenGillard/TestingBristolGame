@@ -11,6 +11,34 @@ window.CollectibleManager = (function() {
     const GLOBAL_COLLECTIBLES = [];
     let SCHEDULED_COLLECTIBLES = [];
 
+
+    async function syncFromServer() {
+        if (!window.GameAPI) return;
+        try {
+            const rows = await window.GameAPI.getInventory();
+            if (!Array.isArray(rows) || rows.length === 0) return;
+
+            const gen1Keys = Object.keys(RESOURCE_STYLES);
+            rows.forEach(row => {
+                if (gen1Keys.includes(row.item_key)) {
+                    saveData.inventory[row.item_key] = row.quantity;
+                } else {
+                    if (!saveData.crafted) saveData.crafted = {};
+                    if (!saveData.discovered) saveData.discovered = [];
+                    saveData.crafted[row.item_key] = row.quantity;
+                    if (row.discovered_recipe && !saveData.discovered.includes(row.item_key)) {
+                        saveData.discovered.push(row.item_key);
+                    }
+                }
+            });
+            persist();
+            window.dispatchEvent(new Event('inventorySynced'));
+        } catch (err) {
+            console.warn('Inventory sync skipped (offline):', err.message);
+        }
+    }
+
+
     async function loadLandmarkCollectibles(geoJsonUrl) {
         try {
             const response = await fetch(geoJsonUrl);
@@ -254,6 +282,7 @@ window.CollectibleManager = (function() {
     return {
         styles: RESOURCE_STYLES,
         recipes: RECIPES,
+        syncFromServer,
         getInventory: () => saveData.inventory,
         getCrafted: () => saveData.crafted || {},
         getDiscovered: () => saveData.discovered || [],
