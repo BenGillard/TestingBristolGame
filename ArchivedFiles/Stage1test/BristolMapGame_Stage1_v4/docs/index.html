@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Bristol Exploration Game</title>
+
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0d1b2a">
+    <link rel="apple-touch-icon" href="assets/icon-192.png">
+
+    <!-- Self-Hosted Leaflet CSS -->
+    <link rel="stylesheet" href="lib/leaflet/leaflet.css" />
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+    <!-- TAB 1: MAP (Default Active View) -->
+    <main id="tab-map" class="tab-view active">
+        <div id="map"></div>
+
+    <!--- Map Controls Stack -->    
+    <div id="map-controls-stack">
+        <button id="profile-btn" class="map-fab" title="Explorer Profile">👤</button>
+        <button id="settings-btn" class="map-fab" title="Settings & Help">⚙️</button>
+        <button id="recentre-btn" class="map-fab" title="Recentre on GPS">🎯</button>
+    </div>
+
+
+        <!-- Floating Action Buttons Above Bottom Nav -->
+        <div id="map-hud">
+            <div class="status-pill" id="gps-status">Loading Map Engine...</div>
+            <button class="action-btn" id="start-btn">Start GPS Tracking</button>
+            <button class="action-btn" id="claim-btn">Claim Mystery Cache</button>
+        </div>
+    </main>
+
+    <!-- TAB 2: DAILIES -->
+    <section id="tab-dailies" class="tab-view panel-view">
+        <header class="panel-header">
+            <h2>📅 Daily Challenges</h2>
+            <p class="panel-sub" id="refresh-status">Resets daily at 4:00 PM</p>
+        </header>
+        <div id="dailies-content" class="panel-body">
+            <div class="placeholder-card">Daily tasks and 4:00 PM streak tracker will load here.</div>
+        </div>
+    </section>
+
+    <!-- TAB 3: BULLETIN BOARD -->
+    <section id="tab-bulletin" class="tab-view panel-view">
+        <header class="panel-header">
+            <h2>📌 Bristol Bulletin</h2>
+            <p class="panel-sub">Local community updates & postcode landmarks</p>
+        </header>
+        <div id="bulletin-content" class="panel-body">
+            <div class="placeholder-card">Community notices and local BS events will load here.</div>
+        </div>
+    </section>
+
+    <!-- TAB 4: INVENTORY & CRAFTING -->
+    <section id="tab-inventory" class="tab-view panel-view">
+        <header class="panel-header">
+            <h2>🎒 Backpack & Crafting</h2>
+            <p class="panel-sub">Combine collected resources into Bristol builds</p>
+        </header>
+        <div id="inventory-content" class="panel-body">
+            <div class="placeholder-card">Full item breakdown and crafting recipes will load here.</div>
+        </div>
+    </section>
+
+    <!-- TAB 5: LEADERBOARD -->
+    <section id="tab-leaderboard" class="tab-view panel-view">
+        <header class="panel-header">
+            <h2>🏆 BS Leaderboard</h2>
+            <p class="panel-sub">Top explorers & postcode district rankings</p>
+        </header>
+        <div id="leaderboard-content" class="panel-body">
+            <div class="placeholder-card">BS1–BS49 district standings will load here.</div>
+        </div>
+    </section>
+
+    <!-- Bottom 5-Icon Navigation Bar -->
+    <nav id="bottom-nav" aria-label="Main Navigation">
+        <button class="nav-tab" data-tab="tab-dailies" aria-label="Dailies">
+            <span class="nav-icon">📅</span>
+            <span class="nav-label">Dailies</span>
+        </button>
+        <button class="nav-tab" data-tab="tab-bulletin" aria-label="Bulletin Board">
+            <span class="nav-icon">📌</span>
+            <span class="nav-label">Bulletin</span>
+        </button>
+        <button class="nav-tab active" data-tab="tab-map" aria-label="Map">
+            <span class="nav-icon">🗺️</span>
+            <span class="nav-label">Map</span>
+        </button>
+        <button class="nav-tab" data-tab="tab-inventory" aria-label="Inventory">
+            <span class="nav-icon">🎒</span>
+            <span class="nav-label">Inventory</span>
+        </button>
+        <button class="nav-tab" data-tab="tab-leaderboard" aria-label="Leaderboard">
+            <span class="nav-icon">🏆</span>
+            <span class="nav-label">Ranks</span>
+        </button>
+    </nav>
+
+    <!-- Modular Scripts -->
+    <script src="lib/leaflet/leaflet.js"></script>
+    <script src="collectibles.js"></script>
+    <script src="tabs.js"></script>
+    <script src="dailies.js"></script>
+    <script src="bulletin.js"></script>
+    <script src="inventory.js"></script>
+    <script src="leaderboard.js"></script>
+    <script src="modals.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>

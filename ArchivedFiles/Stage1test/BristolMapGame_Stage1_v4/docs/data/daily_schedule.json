@@ -1,0 +1,25 @@
+{
+  "2026-11-13": {
+    "puzzle": {
+      "question": "Which Bristol street is famous for its steep hill and independent shops?",
+      "answer": "Park Street",
+      "rewardText": "+2 Stone",
+      "reward": { "type": "stone" | "wood" | "water" | "metal", "amount": 2 }
+    },
+    "poll": {
+      "question": "Favourite Bristol viewpoint?",
+      "options": ["Cabot Tower", "Clifton Observatory", "Trooper's Hill", "Dundry"]
+    },
+    "advert": {
+      "sponsor": "BS5 Bakery",
+      "headline": "Free pastry with any hot drink today!",
+      "cta": "Claim Voucher"
+    },
+    "challenge": {
+      "title": "Park Explorer",
+      "description": "Claim 4 mystery caches today.",
+      "target": 4,
+      "rewardText": "+1 Metal"
+    }
+  }
+}

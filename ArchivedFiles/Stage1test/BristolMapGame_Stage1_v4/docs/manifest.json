@@ -1,0 +1,24 @@
+{
+  "short_name": "ExploreBristol",
+  "name": "Bristol Exploration & Geolocation Game",
+  "description": "Discover hidden virtual collectibles, complete puzzles, and explore Bristol landmarks.",
+  "icons": [
+    {
+      "src": "assets/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "./index.html",
+  "background_color": "#0d1b2a",
+  "theme_color": "#1b263b",
+  "display": "standalone",
+  "orientation": "portrait",
+  "categories": ["games", "utilities"]
+}
