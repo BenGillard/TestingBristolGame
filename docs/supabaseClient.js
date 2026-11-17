@@ -1,6 +1,29 @@
-// js/supabaseClient.js
+// Debugging helper to show errors in a fixed banner at the top of the page
+window.showDebugError = function(step, err) {
+  console.error(`[Supabase Debug - ${step}]`, err);
+  let banner = document.getElementById('sb-debug-banner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'sb-debug-banner';
+    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#d90429;color:#fff;padding:12px;font-family:monospace;font-size:12px;word-break:break-word;';
+    document.body.prepend(banner);
+  }
+  banner.innerHTML += `<div><strong>FAIL [${step}]:</strong> ${err?.message || err}</div>`;
+};
+
 const SUPABASE_URL = 'https://ghqdlwazhfvyayanlhli.supabase.co/rest/v1/';
 const SUPABASE_ANON_KEY = 'sb_publishable_NL8Kv6zmsxwoEV7z1e2tGg_78_R0Pnk';
+
+let sb = null;
+try {
+  if (!window.supabase) {
+    throw new Error('window.supabase is undefined (CDN script failed to load)');
+  }
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+} catch (err) {
+  window.showDebugError('1. Client Init', err);
+}
+
 
 // Initialise the global client
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
