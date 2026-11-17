@@ -1,0 +1,138 @@
+{
+  "type": "FeatureCollection",
+  "attribution": "Coordinates derived from OpenStreetMap contributors (ODbL); historical facts compiled from Bristol City Council & Historic England records.",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "landmark-clifton-bridge",
+        "name": "Clifton Suspension Bridge",
+        "resourceType": "stone",
+        "funFact": "Designed by Isambard Kingdom Brunel, the bridge opened in 1864 and uses iron chains originally built for London's Hungerford Bridge.",
+        "attribution": "OpenStreetMap / Historic England"
+      },
+      "geometry": { "type": "Point", "coordinates": [-2.6279, 51.4549] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "landmark-ss-great-britain",
+        "name": "Brunel's SS Great Britain",
+        "resourceType": "metal",
+        "funFact": "Launched in Bristol in 1843, she was the world's first ocean liner to combine an iron hull with a screw propeller.",
+        "attribution": "OpenStreetMap / SS Great Britain Trust"
+      },
+      "geometry": { "type": "Point", "coordinates": [-2.6083, 51.4484] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "landmark-cabot-tower",
+        "name": "Cabot Tower (Brandon Hill)",
+        "resourceType": "stone",
+        "funFact": "Built in 1897 to mark 400 years since John Cabot sailed from Bristol to North America, its spiral staircase climbs 105 feet.",
+        "attribution": "OpenStreetMap / Bristol City Council"
+      },
+      "geometry": { "type": "Point", "coordinates": [-2.6068, 51.4526] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "landmark-castle-park-fountain",
+        "name": "Castle Park & St Peter's Church",
+        "resourceType": "water",
+        "funFact": "The ruined shell of St Peter's Church has been preserved as a permanent memorial to the Bristol Blitz of November 1940.",
+        "attribution": "OpenStreetMap / Historic England"
+      },
+      "geometry": { "type": "Point", "coordinates": [-2.5872, 51.4548] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "landmark-st-nicholas-market",
+        "name": "St Nicholas Market Exchange",
+        "resourceType": "metal",
+        "funFact": "Outside the 1743 Exchange stand four bronze 'Nails'—merchants paid cash on them, inspiring the phrase 'pay on the nail'.",
+        "attribution": "OpenStreetMap / Historic England"
+      },
+      "geometry": { "type": "Point", "coordinates": [-2.5931, 51.4541] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "landmark-wills-memorial",
+        "name": "Wills Memorial Building",
+        "resourceType": "stone",
+        "funFact": "Opened in 1925, its neo-Gothic tower houses Great George, a 9.5-tonne bell that is one of the largest in Britain.",
+        "attribution": "OpenStreetMap / University of Bristol"
+      },
+      "geometry": { "type": "Point", "coordinates": [-2.6046, 51.4561] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "landmark-troopers-hill",
+        "name": "Troopers Hill Chimney",
+        "resourceType": "stone",
+        "funFact": "This Grade II listed 1790s flue once served copper smelting and chemical works overlooking the River Avon in St George.",
+        "attribution": "OpenStreetMap / Friends of Troopers Hill"
+      },
+      "geometry": { "type": "Point", "coordinates": [-2.5364, 51.4517] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "landmark-st-george-lake",
+        "name": "St George Park Lake",
+        "resourceType": "water",
+        "funFact": "Opened in 1894 on former brickworks land, St George Park is home to one of Bristol's oldest Victorian ornamental lakes.",
+        "attribution": "OpenStreetMap / Bristol Parks"
+      },
+      "geometry": { "type": "Point", "coordinates": [-2.5486, 51.4589] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "landmark-clifton-observatory",
+        "name": "Clifton Observatory & Giant's Cave",
+        "resourceType": "stone",
+        "funFact": "Originally a 1766 snuff mill, its rooftop houses a working Victorian camera obscura projecting live panoramic views of the gorge.",
+        "attribution": "OpenStreetMap / Historic England"
+      },
+      "geometry": { "type": "Point", "coordinates": [-2.6258, 51.4557] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "landmark-temple-meads",
+        "name": "Bristol Temple Meads Old Station",
+        "resourceType": "metal",
+        "funFact": "Completed in 1840 as the western terminus of Brunel's Great Western Railway, it is the oldest surviving railway terminus in the world.",
+        "attribution": "OpenStreetMap / Network Rail"
+      },
+      "geometry": { "type": "Point", "coordinates": [-2.5811, 51.4494] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "landmark-snuff-mills",
+        "name": "Snuff Mills (Frome Valley)",
+        "resourceType": "wood",
+        "funFact": "Named after a quarryman who ground snuff here in the 18th century, its riverside waterwheel still turns beside the River Frome.",
+        "attribution": "OpenStreetMap / Bristol City Council"
+      },
+      "geometry": { "type": "Point", "coordinates": [-2.5349, 51.4832] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "landmark-ashton-court-deer",
+        "name": "Ashton Court Ancient Oaks",
+        "resourceType": "wood",
+        "funFact": "Ashton Court's 850-acre estate shelters ancient veteran oak trees that are more than 700 years old.",
+        "attribution": "OpenStreetMap / Bristol City Council"
+      },
+      "geometry": { "type": "Point", "coordinates": [-2.6435, 51.4438] }
+    }
+  ]
+}
