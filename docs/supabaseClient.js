@@ -60,15 +60,17 @@ const GameAPI = {
     return session.user;
   },
 
-  // Upgrade Visitor to a permanent Resident account
-  async upgradeToResident({ email, password, username, outcode, ageBracket }) {
+  // Upgrade Visitor to a permanent Resident account (BS1–BS49 + Age Bracket + Email/Password)
+  async upgradeToResident({ email, password, username, avatar, avatarType, outcode, ageBracket }) {
     // 1. Link email & password to the existing anonymous user ID
     const { error: authError } = await sb.auth.updateUser({ email, password });
     if (authError) throw authError;
 
-    // 2. Save validated profile details via secure RPC
+    // 2. Save validated Resident profile details via secure RPC
     const { error: rpcError } = await sb.rpc('update_player_profile', {
       p_username: username,
+      p_avatar: avatar || '🧭',
+      p_avatar_type: avatarType || 'emoji',
       p_outcode: outcode,
       p_age_bracket: ageBracket,
       p_is_resident: true
@@ -78,17 +80,25 @@ const GameAPI = {
     return true;
   },
 
-  // Update username, BS outcode, or age bracket for an existing profile
-  async updateProfile({ username, outcode, ageBracket, isResident }) {
+  // Update Visitor profile (or existing Resident details without re-linking auth)
+  async updateProfile({ username, avatar, avatarType, outcode = 'Visitor', ageBracket = null, isResident = false }) {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) {
+      await this.initSession();
+    }
+
     const { error } = await sb.rpc('update_player_profile', {
       p_username: username,
+      p_avatar: avatar || '🧭',
+      p_avatar_type: avatarType || 'emoji',
       p_outcode: outcode,
-      p_age_bracket: ageBracket,
+      p_age_bracket: isResident ? ageBracket : null,
       p_is_resident: isResident
     });
     if (error) throw error;
     return true;
   },
+
 
   // ==========================================================================
   // 2. INVENTORY & ANTI-CHEAT CLAIMING (With Offline Queue)

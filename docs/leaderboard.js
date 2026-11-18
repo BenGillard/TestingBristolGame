@@ -96,7 +96,26 @@ window.LeaderboardUI = (function() {
         if (!container) return;
 
         const data = await fetchLeaderboardData();
-        const isVisitor = data.profile.outcode === "Visitor";
+        // If user is a Visitor, show upgrade prompt instead of leaderboard
+        if (!data.profile.isResident || data.profile.outcode === 'Visitor') {
+            container.innerHTML = `
+                <div class="placeholder-card" style="text-align: center; padding: 28px 18px;">
+                    <div style="font-size: 36px; margin-bottom: 10px;">🏆</div>
+                    <h3 style="color: #ffb703; margin-bottom: 8px;">Resident Leaderboards</h3>
+                    <p style="margin-bottom: 16px; line-height: 1.45;">
+                        You are currently exploring as a <strong>Visitor</strong>. Link a Bristol postcode (BS1–BS49) to unlock district standings and top explorer rankings.
+                    </p>
+                    <button type="button" id="lb-upgrade-btn" class="modal-primary-btn" style="max-width: 240px;">
+                        Set Up Resident Account
+                    </button>
+                </div>
+            `;
+            document.getElementById('lb-upgrade-btn')?.addEventListener('click', () => {
+                if (window.OverlaysUI) window.OverlaysUI.openProfileModal();
+            });
+            return;
+        }
+
 
         container.innerHTML = `
             <div class="lb-wrapper">

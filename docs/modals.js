@@ -3,10 +3,13 @@ window.UserAccountService = (function () {
     const SETTINGS_KEY = 'bristol_player_settings_v1';
 
     const DEFAULT_PROFILE = {
-        userId: null, // Populated once linked to Supabase/Firebase auth
+        userId: null,
         username: 'Bristol Explorer',
         avatar: '🧭',
-        outcode: 'BS1',
+        avatarType: 'emoji',
+        outcode: 'Visitor',
+        ageBracket: '18-24',
+        isResident: false,
         updatedAt: null
     };
 
@@ -18,8 +21,6 @@ window.UserAccountService = (function () {
         wakeLock: false
     };
 
-
-    // SWAP THESE ASYNC METHODS WHEN CONNECTING YOUR BACKEND DATABASE
     async function getProfile() {
         try {
             const saved = JSON.parse(localStorage.getItem(PROFILE_KEY));
@@ -38,12 +39,10 @@ window.UserAccountService = (function () {
         };
         localStorage.setItem(PROFILE_KEY, JSON.stringify(next));
         window.dispatchEvent(new CustomEvent('profileUpdated', { detail: next }));
-        // Future DB hook: await supabase.from('profiles').upsert(next);
         return next;
     }
 
     async function deleteAccount() {
-        // Future DB hook: await supabase.rpc('delete_user_account');
         localStorage.removeItem(PROFILE_KEY);
         localStorage.removeItem(SETTINGS_KEY);
         localStorage.removeItem('bristol_game_save_v1');
@@ -85,8 +84,6 @@ window.UserAccountService = (function () {
     function applySettingsToDOM(settings = getSettings()) {
         // 1. Apply light/dark mode (matches style.css rules)
         document.body.classList.toggle('light-ui', settings.mode === 'light');
-
-
 
         // 2. Toggle GPS Coordinates readout
         const coordsEl = document.getElementById('gps-coords');
@@ -137,7 +134,7 @@ window.UserAccountService = (function () {
 window.OverlaysUI = (function () {
     const AVATAR_CHOICES = ['🧭', '⛵', '🌉', '🦊', '🎈', '⚓', '🌿', '🔭'];
 
-    // All valid Bristol & surrounding BS outcodes (BS1 - BS49)
+    // All valid Bristol & surrounding BS outcodes (BS1 - BS49, excluding BS12)
     const BS_OUTCODES = [
         'Visitor',
         ...Array.from({ length: 49 }, (_, i) => `BS${i + 1}`).filter(code => code !== 'BS12')
@@ -206,6 +203,8 @@ window.OverlaysUI = (function () {
         const backdrop = document.getElementById('app-modal-backdrop');
         const sheet = document.getElementById('app-modal-sheet');
         const isCustomImage = profile.avatarType === 'image' && profile.avatar;
+        const isCurrentlyResident = Boolean(profile.isResident && profile.outcode !== 'Visitor');
+        const showResidentFields = profile.outcode !== 'Visitor';
 
         sheet.innerHTML = `
             <div class="modal-header">
@@ -248,6 +247,29 @@ window.OverlaysUI = (function () {
                 </select>
                 <p class="field-hint">Used for local BS postcode district leaderboards. No full address is ever stored.</p>
 
+                <div id="resident-upgrade-fields" style="display: ${showResidentFields ? 'flex' : 'none'}; flex-direction: column; gap: 10px; margin-top: 6px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.12);">
+                <div id="resident-upgrade-fields" style="display: ${showResidentFields ? 'flex' : 'none'}; flex-direction: column; gap: 10px; margin-top: 6px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.12);">
+                    <div class="settings-group-title">Resident Leaderboard Registration</div>
+
+                    <label class="field-label" for="profile-age-bracket">Age Bracket</label>
+                    <select id="profile-age-bracket" class="modal-input">
+                        ${['Under 18', '18-24', '25-34', '35-49', '50+'].map(bracket => `
+                            <option value="${bracket}" ${profile.ageBracket === bracket ? 'selected' : ''}>${bracket}</option>
+                        `).join('')}
+                    </select>
+
+                    ${!isCurrentlyResident ? `
+                        <label class="field-label" for="profile-email">Email Address</label>
+                        <input type="email" id="profile-email" class="modal-input" placeholder="you@example.com" />
+
+                        <label class="field-label" for="profile-password">Create Password</label>
+                        <input type="password" id="profile-password" class="modal-input" minlength="6" placeholder="Min 6 characters" />
+                        <p class="field-hint">Links your progress permanently and unlocks BS district leaderboards.</p>
+                    ` : `
+                        <p class="field-hint">✅ Registered BS Resident — your discoveries count toward the ${profile.outcode} leaderboard.</p>
+                    `}
+                </div>
+
                 <button type="button" id="save-profile-btn" class="modal-primary-btn">Save Profile</button>
                 <div id="profile-save-msg" class="modal-feedback"></div>
 
@@ -287,26 +309,122 @@ window.OverlaysUI = (function () {
             });
         });
 
-        document.getElementById('save-profile-btn').addEventListener('click', async () => {
+        const outcodeSelect = document.getElementById('profile-outcode');
+        const residentBox = document.getElementById('resident-upgrade-fields');
+        const saveBtn = document.getElementById('save-profile-btn');
+
+        function syncFormMode() {
+            const isVisitor = outcodeSelect.value === 'Visitor';
+            residentBox.style.display = isVisitor ? 'none' : 'flex';
+            if (isVisitor) {
+                saveBtn.textContent = 'Save Visitor Profile';
+            } else if (isCurrentlyResident) {
+                saveBtn.textContent = 'Update Resident Profile';
+            } else {
+                saveBtn.textContent = 'Upgrade to Resident';
+            }
+        }
+
+        outcodeSelect.addEventListener('change', syncFormMode);
+        syncFormMode();
+
+        saveBtn.addEventListener('click', async () => {
+            const msg = document.getElementById('profile-save-msg');
             const rawName = document.getElementById('profile-username').value.trim();
             const username = rawName.length >= 2 ? rawName : 'Bristol Explorer';
-            const outcode = document.getElementById('profile-outcode').value;
+            const outcode = outcodeSelect.value;
+            const isVisitor = outcode === 'Visitor';
 
-            const savedProfile = await window.UserAccountService.saveProfile({
-                username,
-                avatar: selectedAvatar,
-                avatarType: selectedAvatarType,
-                outcode
-            });
+            try {
+                msg.style.color = '#00b4d8';
+                msg.textContent = 'Saving...';
 
-            window.UserAccountService.renderProfileFab(savedProfile);
+                if (isVisitor) {
+                    // Visitor flow: updateProfile only (no age bracket, no leaderboard)
+                    if (window.GameAPI && navigator.onLine) {
+                        await window.GameAPI.updateProfile({
+                            username,
+                            avatar: selectedAvatar,
+                            avatarType: selectedAvatarType,
+                            outcode: 'Visitor',
+                            ageBracket: null,
+                            isResident: false
+                        });
+                    }
+                    const saved = await window.UserAccountService.saveProfile({
+                        username,
+                        avatar: selectedAvatar,
+                        avatarType: selectedAvatarType,
+                        outcode: 'Visitor',
+                        isResident: false
+                    });
+                    window.UserAccountService.renderProfileFab(saved);
+                    msg.style.color = '#4ad66d';
+                    msg.textContent = 'Visitor profile saved!';
+                } else if (!isCurrentlyResident) {
+                    // First-time Resident upgrade: requires ageBracket + email + password
+                    const ageBracket = document.getElementById('profile-age-bracket').value;
+                    const email = document.getElementById('profile-email').value.trim();
+                    const password = document.getElementById('profile-password').value;
 
-            window.UserAccountService.triggerHaptic(30);
-            const msg = document.getElementById('profile-save-msg');
-            msg.textContent = 'Profile saved!';
-            setTimeout(() => { msg.textContent = ''; }, 2000);
+                    if (!email || password.length < 6) {
+                        throw new Error('Enter a valid email and a password of at least 6 characters.');
+                    }
+
+                    await window.GameAPI.upgradeToResident({
+                        email,
+                        password,
+                        username,
+                        avatar: selectedAvatar,
+                        avatarType: selectedAvatarType,
+                        outcode,
+                        ageBracket
+                    });
+
+                    const saved = await window.UserAccountService.saveProfile({
+                        username,
+                        avatar: selectedAvatar,
+                        avatarType: selectedAvatarType,
+                        outcode,
+                        ageBracket,
+                        isResident: true
+                    });
+                    window.UserAccountService.renderProfileFab(saved);
+                    msg.style.color = '#4ad66d';
+                    msg.textContent = 'Upgraded to BS Resident!';
+                } else {
+                    // Already a Resident updating username, avatar, outcode, or age bracket
+                    const ageBracket = document.getElementById('profile-age-bracket').value;
+                    if (window.GameAPI && navigator.onLine) {
+                        await window.GameAPI.updateProfile({
+                            username,
+                            avatar: selectedAvatar,
+                            avatarType: selectedAvatarType,
+                            outcode,
+                            ageBracket,
+                            isResident: true
+                        });
+                    }
+                    const saved = await window.UserAccountService.saveProfile({
+                        username,
+                        avatar: selectedAvatar,
+                        avatarType: selectedAvatarType,
+                        outcode,
+                        ageBracket,
+                        isResident: true
+                    });
+                    window.UserAccountService.renderProfileFab(saved);
+                    msg.style.color = '#4ad66d';
+                    msg.textContent = 'Resident profile updated!';
+                }
+
+                window.UserAccountService.triggerHaptic(30);
+            } catch (err) {
+                msg.style.color = '#f87171';
+                msg.textContent = err.message || 'Could not save profile.';
+            }
+            setTimeout(() => { msg.textContent = ''; }, 3000);
         });
-
 
         // Two-step confirmation to prevent accidental account deletion
         let confirmDeleteArmed = false;
@@ -325,14 +443,14 @@ window.OverlaysUI = (function () {
             alert('Your account and local progress have been permanently deleted.');
             location.reload();
         });
-        }
+    }
 
     function openSettingsModal() {
         const settings = window.UserAccountService.getSettings();
         const backdrop = document.getElementById('app-modal-backdrop');
         const sheet = document.getElementById('app-modal-sheet');
 
-        sheet.innerHTML = `
+                sheet.innerHTML = `
             <div class="modal-header">
                 <h3>Settings & Help</h3>
                 <button class="modal-close-btn" id="modal-close-x" aria-label="Close">✕</button>
@@ -449,3 +567,4 @@ window.OverlaysUI = (function () {
 
     return { openProfileModal, openSettingsModal, closeModal };
 })();
+
