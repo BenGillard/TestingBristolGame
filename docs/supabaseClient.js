@@ -19,7 +19,7 @@ try {
   if (!window.supabase) {
     throw new Error('window.supabase is undefined (CDN script failed to load)');
   }
-  windowsb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  window.sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 } catch (err) {
   window.showDebugError('1. Client Init', err);
 }
