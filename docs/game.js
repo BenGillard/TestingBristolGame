@@ -166,12 +166,14 @@ window.addEventListener('load', async () => {
         return;
     }
 
-    // Debugging helper banner for Supabase errors (if supabaseClient.js failed to load)
-if (!window.GameAPI) {
-    if (window.showDebugError) window.showDebugError('0. Script Load', 'supabaseClient.js did not load');
-} else {
-    try {
-        const user = await window.GameAPI.initSession();
+    // In game.js, stop before Auth Session if window.sb failed to initialize:
+    if (!window.GameAPI) {
+        if (window.showDebugError) window.showDebugError('0. Script Load', 'supabaseClient.js did not load');
+    } else if (!window.sb) {
+        if (window.showDebugError) window.showDebugError('1B. Client Null', 'window.sb is still null — check console for 1. Client Init error or clear PWA cache');
+    } else {
+        try {
+            const user = await window.GameAPI.initSession();
         if (!user) throw new Error('Anonymous sign-in returned no user (check Supabase Auth settings)');
     } catch (err) {
         window.showDebugError('2. Auth Session', err);
@@ -201,17 +203,7 @@ if (!window.InventoryUI) {
 }
 
 
-    // 1. Boot Supabase session & sync server state first
-    if (window.GameAPI) {
-        await window.GameAPI.initSession();
-        if (window.CollectibleManager.syncFromServer) {
-            await window.CollectibleManager.syncFromServer();
-        }
-        if (window.DailiesUI && window.DailiesUI.loadScheduledContent) {
-            await window.DailiesUI.loadScheduledContent();
-            window.DailiesUI.render();
-        }
-    }
+    // 1. Supabase session booted in debugger block above.
 
     // 2. Continue with your existing map & UI setup
     initSafetyOverlay();
