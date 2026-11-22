@@ -235,7 +235,7 @@ window.OverlaysUI = (function () {
                     `).join('')}
                 </div>
 
-                <label class="field-label" for="profile-username">Explorer Username</label>
+                <label class="field-label" for="profile-username">Explorer Username (20 characters max, no spaces or special characters)</label>
                 <input type="text" id="profile-username" class="modal-input" maxlength="24"
                        value="${profile.username.replace(/"/g, '&quot;')}" placeholder="Enter username" />
 
@@ -253,7 +253,7 @@ window.OverlaysUI = (function () {
 
                     <label class="field-label" for="profile-age-bracket">Age Bracket</label>
                     <select id="profile-age-bracket" class="modal-input">
-                        ${['Under 18', '18-24', '25-34', '35-49', '50+'].map(bracket => `
+                        ${['Under 18', '18-34', '35-49', '50-64', '65-79', '80'].map(bracket => `
                             <option value="${bracket}" ${profile.ageBracket === bracket ? 'selected' : ''}>${bracket}</option>
                         `).join('')}
                     </select>
