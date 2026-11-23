@@ -247,8 +247,7 @@ window.OverlaysUI = (function () {
                 </select>
                 <p class="field-hint">Used for local BS postcode district leaderboards. No full address is ever stored.</p>
 
-                <div id="resident-upgrade-fields" style="display: ${showResidentFields ? 'flex' : 'none'}; flex-direction: column; gap: 10px; margin-top: 6px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.12);">
-                <div id="resident-upgrade-fields" style="display: ${showResidentFields ? 'flex' : 'none'}; flex-direction: column; gap: 10px; margin-top: 6px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.12);">
+                                <div id="resident-upgrade-fields" style="display: ${showResidentFields ? 'flex' : 'none'}; flex-direction: column; gap: 10px; margin-top: 6px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.12);">
                     <div class="settings-group-title">Resident Leaderboard Registration</div>
 
                     <label class="field-label" for="profile-age-bracket">Age Bracket</label>
@@ -340,7 +339,6 @@ window.OverlaysUI = (function () {
                 msg.textContent = 'Saving...';
 
                 if (isVisitor) {
-                    // Visitor flow: updateProfile only (no age bracket, no leaderboard)
                     if (window.GameAPI && navigator.onLine) {
                         await window.GameAPI.updateProfile({
                             username,
@@ -362,7 +360,6 @@ window.OverlaysUI = (function () {
                     msg.style.color = '#4ad66d';
                     msg.textContent = 'Visitor profile saved!';
                 } else if (!isCurrentlyResident) {
-                    // First-time Resident upgrade: requires ageBracket + email + password
                     const ageBracket = document.getElementById('profile-age-bracket').value;
                     const email = document.getElementById('profile-email').value.trim();
                     const password = document.getElementById('profile-password').value;
@@ -393,7 +390,6 @@ window.OverlaysUI = (function () {
                     msg.style.color = '#4ad66d';
                     msg.textContent = 'Upgraded to BS Resident!';
                 } else {
-                    // Already a Resident updating username, avatar, outcode, or age bracket
                     const ageBracket = document.getElementById('profile-age-bracket').value;
                     if (window.GameAPI && navigator.onLine) {
                         await window.GameAPI.updateProfile({
@@ -426,7 +422,6 @@ window.OverlaysUI = (function () {
             setTimeout(() => { msg.textContent = ''; }, 3000);
         });
 
-        // Two-step confirmation to prevent accidental account deletion
         let confirmDeleteArmed = false;
         const delBtn = document.getElementById('delete-account-btn');
         delBtn.addEventListener('click', async () => {
@@ -450,7 +445,7 @@ window.OverlaysUI = (function () {
         const backdrop = document.getElementById('app-modal-backdrop');
         const sheet = document.getElementById('app-modal-sheet');
 
-                sheet.innerHTML = `
+        sheet.innerHTML = `
             <div class="modal-header">
                 <h3>Settings & Help</h3>
                 <button class="modal-close-btn" id="modal-close-x" aria-label="Close">✕</button>
@@ -513,6 +508,28 @@ window.OverlaysUI = (function () {
                         </details>
                     `).join('')}
                 </div>
+
+                <div class="settings-group-title" style="margin-top: 14px;">Feedback & Bug Reports</div>
+                <button type="button" id="toggle-feedback-btn" class="upload-photo-btn" style="width: 100%; text-align: center; justify-content: center;">
+                    🐞 Report a Bug or Suggest an Improvement
+                </button>
+
+                <div id="feedback-form-box" style="display: none; flex-direction: column; gap: 10px; margin-top: 10px; padding: 12px; border-radius: 10px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.12);">
+                    <label class="field-label" for="feedback-category">Report Type</label>
+                    <select id="feedback-category" class="modal-input">
+                        <option value="bug">🐞 Bug / Glitch</option>
+                        <option value="improvement">💡 Game Improvement / Idea</option>
+                        <option value="other">💬 General Feedback</option>
+                    </select>
+
+                    <label class="field-label" for="feedback-text">Details (max 1000 characters)</label>
+                    <textarea id="feedback-text" class="modal-input" rows="4" maxlength="1000"
+                              placeholder="Describe what happened or what you'd love to see in Bristol..."
+                              style="resize: vertical; font-family: inherit;"></textarea>
+
+                    <button type="button" id="submit-feedback-btn" class="modal-primary-btn">Send Report</button>
+                    <div id="feedback-status-msg" class="modal-feedback"></div>
+                </div>
             </div>
         `;
 
@@ -543,6 +560,60 @@ window.OverlaysUI = (function () {
         document.getElementById('toggle-wakelock').addEventListener('change', (e) => {
             window.UserAccountService.saveSettings({ wakeLock: e.target.checked });
         });
+
+        // Toggle & submit bug/improvement report
+        const toggleFeedbackBtn = document.getElementById('toggle-feedback-btn');
+        const feedbackBox = document.getElementById('feedback-form-box');
+        const submitFeedbackBtn = document.getElementById('submit-feedback-btn');
+        const feedbackText = document.getElementById('feedback-text');
+        const feedbackCategory = document.getElementById('feedback-category');
+        const feedbackMsg = document.getElementById('feedback-status-msg');
+
+        toggleFeedbackBtn.addEventListener('click', () => {
+            const isHidden = feedbackBox.style.display === 'none';
+            feedbackBox.style.display = isHidden ? 'flex' : 'none';
+            if (isHidden) {
+                feedbackText.focus();
+            }
+        });
+
+        submitFeedbackBtn.addEventListener('click', async () => {
+            const message = feedbackText.value.trim();
+            const category = feedbackCategory.value;
+
+            if (message.length < 5) {
+                feedbackMsg.style.color = '#f87171';
+                feedbackMsg.textContent = 'Please enter at least 5 characters.';
+                return;
+            }
+
+            if (!navigator.onLine || !window.GameAPI || typeof window.GameAPI.submitFeedback !== 'function') {
+                feedbackMsg.style.color = '#f87171';
+                feedbackMsg.textContent = 'You need an internet connection to send a report.';
+                return;
+            }
+
+            submitFeedbackBtn.disabled = true;
+            feedbackMsg.style.color = '#00b4d8';
+            feedbackMsg.textContent = 'Sending report...';
+
+            try {
+                await window.GameAPI.submitFeedback({ message, category });
+                window.UserAccountService.triggerHaptic(35);
+                feedbackText.value = '';
+                feedbackMsg.style.color = '#4ad66d';
+                feedbackMsg.textContent = 'Thanks! Your report has been sent.';
+                setTimeout(() => {
+                    feedbackMsg.textContent = '';
+                    feedbackBox.style.display = 'none';
+                }, 2000);
+            } catch (err) {
+                feedbackMsg.style.color = '#f87171';
+                feedbackMsg.textContent = err.message || 'Could not send report. Please try again.';
+            } finally {
+                submitFeedbackBtn.disabled = false;
+            }
+        });
     }
 
     async function init() {
@@ -567,4 +638,3 @@ window.OverlaysUI = (function () {
 
     return { openProfileModal, openSettingsModal, closeModal };
 })();
-

@@ -346,3 +346,31 @@ document.addEventListener('visibilitychange', () => {
 });
 
 window.GameAPI = GameAPI;
+
+// ==========================================================================
+// 5. FEEDBACK & ERROR REPORTING
+// ==========================================================================
+// Submit a bug report or improvement suggestion from the Settings modal
+  async submitFeedback({ message, category = 'bug' }) {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) {
+      await this.initSession();
+    }
+
+    const appContext = {
+      online: navigator.onLine,
+      standalone: window.matchMedia('(display-mode: standalone)').matches,
+      userAgent: navigator.userAgent.slice(0, 200)
+    };
+
+    const { error } = await sb.rpc('submit_game_feedback', {
+      p_message: message,
+      p_category: category,
+      p_app_context: appContext
+    });
+
+    if (error) throw error;
+    return true;
+  }
+
+
