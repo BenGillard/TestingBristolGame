@@ -247,6 +247,12 @@ window.CollectibleManager = (function() {
             if (target) target.claimed = true;
         }
         persist();
+        if (window.GameAPI) {
+           window.GameAPI.claimCollectible(node.type, node.lat, node.lng).catch(err =>
+               console.warn('Cloud claim sync warning:', err.message)
+           );
+        }
+
         return RESOURCE_STYLES[node.type];
     }
 

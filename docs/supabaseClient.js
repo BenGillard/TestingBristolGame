@@ -60,7 +60,7 @@ const GameAPI = {
     return session.user;
   },
 
-  // Upgrade Visitor to a permanent Resident account (BS1–BS49 + Age Bracket + Email/Password)
+   // Upgrade Visitor to a permanent Resident account (BS1–BS49 + Age Bracket + Email/Password)
   async upgradeToResident({ email, password, username, avatar, avatarType, outcode, ageBracket }) {
     // Ensure an anonymous session exists before linking email/password
     const { data: { session } } = await sb.auth.getSession();
@@ -86,50 +86,57 @@ const GameAPI = {
     // 3. Flush any pending offline claims first
     await this.flushOfflineQueue();
 
-    // 4. Gather Visitor's 1st Gen, 2nd Gen, and Discovered Recipes from CollectibleManager
+    // 4. Read exact local save from CollectibleManager / bristol_game_save_v1
     const itemsMap = new Map();
     const CM = window.CollectibleManager;
+    const rawSave = JSON.parse(localStorage.getItem('bristol_game_save_v1') || '{}');
 
-    if (CM) {
-      // 1st Generation resources (stone, wood, water, metal, etc.)
-      const gen1 = CM.getInventory() || {};
-      Object.entries(gen1).forEach(([item_key, quantity]) => {
-        if (quantity > 0) {
-          itemsMap.set(item_key, { item_key, quantity, discovered_recipe: false });
-        }
-      });
+    const gen1 = (CM && typeof CM.getInventory === 'function' ? CM.getInventory() : rawSave.inventory) || {};
+    const gen2 = (CM && typeof CM.getCrafted === 'function' ? CM.getCrafted() : rawSave.crafted) || {};
+    const discovered = (CM && typeof CM.getDiscovered === 'function' ? CM.getDiscovered() : rawSave.discovered) || [];
 
-      // 2nd Generation crafted items (paper, clay, sparks, timber, cobble, steam)
-      const gen2 = CM.getCrafted() || {};
-      Object.entries(gen2).forEach(([item_key, quantity]) => {
-        if (quantity > 0) {
-          itemsMap.set(item_key, { item_key, quantity, discovered_recipe: true });
-        }
-      });
-
-      // Ensure unlocked recipes are preserved even if current crafted quantity is 0
-      const discovered = CM.getDiscovered() || [];
-      discovered.forEach(item_key => {
-        const existing = itemsMap.get(item_key);
-        itemsMap.set(item_key, {
-          item_key,
-          quantity: existing ? existing.quantity : 0,
-          discovered_recipe: true
-        });
-      });
-    } else {
-      // Fallback to cached inventory if CollectibleManager isn't mounted
-      const cached = JSON.parse(localStorage.getItem(this.CACHE_KEYS.INVENTORY) || '[]');
-      if (Array.isArray(cached)) {
-        cached.forEach(item => itemsMap.set(item.item_key, item));
+    let gen1Total = 0;
+    Object.entries(gen1).forEach(([item_key, quantity]) => {
+      const qty = Number(quantity) || 0;
+      gen1Total += qty;
+      if (qty > 0) {
+        itemsMap.set(item_key, { item_key, quantity: qty, discovered_recipe: false });
       }
-    }
+    });
 
-    // 5. Sync merged items up to Supabase
+    let gen2Total = 0;
+    Object.entries(gen2).forEach(([item_key, quantity]) => {
+      const qty = Number(quantity) || 0;
+      gen2Total += qty;
+      if (qty > 0) {
+        itemsMap.set(item_key, { item_key, quantity: qty, discovered_recipe: true });
+      }
+    });
+
+    discovered.forEach(item_key => {
+      const existing = itemsMap.get(item_key);
+      itemsMap.set(item_key, {
+        item_key,
+        quantity: existing ? existing.quantity : 0,
+        discovered_recipe: true
+      });
+    });
+
+    // Calculate lifetime collectibles found:
+    // Each 2nd-gen crafted item consumed 2x 1st-gen collectibles, plus count claimed nodes directly
+    const claimedNodesCount =
+      (Array.isArray(rawSave.claimedGlobalIds) ? rawSave.claimedGlobalIds.length : 0) +
+      (Array.isArray(rawSave.claimedScheduledKeys) ? rawSave.claimedScheduledKeys.length : 0) +
+      (Array.isArray(rawSave.personalNodes) ? rawSave.personalNodes.filter(n => n.claimed).length : 0);
+
+    const localTotalDiscovered = Math.max(gen1Total + (gen2Total * 2), claimedNodesCount);
     const itemsPayload = Array.from(itemsMap.values());
-    if (itemsPayload.length > 0) {
+
+    // 5. Sync merged items & discovery totals up to Supabase
+    if (itemsPayload.length > 0 || localTotalDiscovered > 0) {
       const { error: syncError } = await sb.rpc('sync_local_inventory', {
-        p_items: itemsPayload
+        p_items: itemsPayload,
+        p_total_discovered: localTotalDiscovered
       });
       if (syncError) throw syncError;
     }
@@ -139,7 +146,6 @@ const GameAPI = {
 
     return true;
   },
-
 
   // Update Visitor profile (or existing Resident details without re-linking auth)
   async updateProfile({ username, avatar, avatarType, outcode = 'Visitor', ageBracket = null, isResident = false }) {
@@ -243,7 +249,7 @@ const GameAPI = {
   },
 
   // ==========================================================================
-  // 3. DAILY SCHEDULE & ZERO-TRACKING POLLS
+  // 3. DAILY/BULLETIN SCHEDULE & ZERO-TRACKING POLLS
   // ==========================================================================
 
   // Fetch today's UK schedule (uses cache if already fetched today)
@@ -298,6 +304,14 @@ const GameAPI = {
     if (error) throw error;
     return data || [];
   },
+
+  // Fetch daily bulletin, upcoming timed collectibles, and 7-day-old poll results
+  async getTodayBulletin() {
+    const { data, error } = await sb.rpc('get_today_bulletin');
+    if (error) throw error;
+    return data;
+  },
+
 
   // ==========================================================================
   // 4. LEADERBOARDS

@@ -8,7 +8,13 @@ window.DailiesUI = (function() {
         },
         puzzle: {
             question: "Which Bristol bridge opened in 1864 and spans the Avon Gorge?",
-            answer: "Clifton Suspension Bridge",
+            options: [
+                "Clifton Suspension Bridge",
+                "Pero's Bridge",
+                "Prince Street Bridge",
+                "Bristol Bridge"
+            ],
+            answerIndex: 0,
             reward: { type: "stone", amount: 2 }
         },
         poll: {
@@ -30,16 +36,32 @@ window.DailiesUI = (function() {
         }
     };
 
-     let state = loadState();
+    let state = loadState();
     let todayContent = FALLBACK_CONTENT;
+    let pendingPuzzleChoice = null;
     let pendingPollChoice = null;
 
     function getMidnightDateKey() {
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
+        return new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/London' });
+    }
+
+    function defaultState(todayKey, streak = 0) {
+        return {
+            dateKey: todayKey,
+            streak,
+            checkedIn: false,
+            checkinRewardText: "",
+            puzzleAttempted: false,
+            puzzleSelectedIndex: null,
+            puzzleSolved: false,
+            puzzleRewardText: "",
+            pollVote: null,
+            pollRewardText: "",
+            advertClaimed: false,
+            challengeProgress: 0,
+            challengeClaimed: false,
+            challengeRewardText: ""
+        };
     }
 
     function loadState() {
@@ -51,20 +73,11 @@ window.DailiesUI = (function() {
                 // Reset daily flags if a new midnight cycle has started
                 if (parsed.dateKey !== todayKey) {
                     const isConsecutive = isYesterday(parsed.dateKey, todayKey);
-                    return {
-                        dateKey: todayKey,
-                        streak: isConsecutive ? (parsed.streak || 0) : 0,
-                        checkedIn: false,
-                        checkinRewardText: "",
-                        puzzleSolved: false,
-                        puzzleRewardText: "",
-                        pollVote: null,
-                        pollRewardText: "",
-                        advertClaimed: false,
-                        challengeProgress: 0,
-                        challengeClaimed: false,
-                        challengeRewardText: ""
-                    };
+                    return defaultState(todayKey, isConsecutive ? (parsed.streak || 0) : 0);
+                }
+                // Backwards compatibility if older save had puzzleSolved without puzzleAttempted
+                if (parsed.puzzleSolved && typeof parsed.puzzleAttempted !== 'boolean') {
+                    parsed.puzzleAttempted = true;
                 }
                 return parsed;
             }
@@ -72,20 +85,7 @@ window.DailiesUI = (function() {
             console.warn("Dailies save reset:", e);
         }
 
-        return {
-            dateKey: todayKey,
-            streak: 0,
-            checkedIn: false,
-            checkinRewardText: "",
-            puzzleSolved: false,
-            puzzleRewardText: "",
-            pollVote: null,
-            pollRewardText: "",
-            advertClaimed: false,
-            challengeProgress: 0,
-            challengeClaimed: false,
-            challengeRewardText: ""
-        };
+        return defaultState(todayKey, 0);
     }
 
     function isYesterday(prevKey, todayKey) {
@@ -126,7 +126,6 @@ window.DailiesUI = (function() {
         return formatRewardBadge(reward);
     }
 
-
     // Called by game.js whenever the player claims a map cache
     function recordCacheClaim() {
         state = loadState();
@@ -144,20 +143,26 @@ window.DailiesUI = (function() {
         return { type: randomType, amount };
     }
 
-
-
-    // Fetch queued daily content keyed by YYYY-MM-DD from supabase RPC, or fallback to built-in content if offline or error
+    // Fetch queued daily content keyed by YYYY-MM-DD from Supabase RPC
     async function loadScheduledContent() {
         if (!window.GameAPI) return;
         try {
             const row = await window.GameAPI.getTodaySchedule();
             if (!row) return;
 
+            const options = Array.isArray(row.puzzle_options) && row.puzzle_options.length > 0
+                ? row.puzzle_options
+                : FALLBACK_CONTENT.puzzle.options;
+            const answerIndex = typeof row.puzzle_answer_index === 'number'
+                ? row.puzzle_answer_index
+                : 0;
+
             todayContent = {
                 ...FALLBACK_CONTENT,
                 puzzle: {
                     question: row.puzzle_question,
-                    answer: row.puzzle_options?.[row.puzzle_answer_index] || "Solved",
+                    options,
+                    answerIndex,
                     reward: { type: "stone", amount: 1 }
                 },
                 poll: row.poll_question ? {
@@ -170,19 +175,12 @@ window.DailiesUI = (function() {
                     description: row.challenge_text,
                     target: 3,
                     reward: { type: "metal", amount: 1 }
-                },
-                bulletinHtml: row.bulletin_html || ""
+                }
             };
-
-            // Pass daily bulletin HTML straight to BulletinUI
-            if (window.BulletinUI && window.BulletinUI.setDailyBulletin) {
-                window.BulletinUI.setDailyBulletin(row.bulletin_html);
-            }
         } catch (err) {
             console.warn("Using offline fallback dailies:", err.message);
         }
     }
-
 
     function render() {
         // Re-check midnight rollover every time the tab opens
@@ -190,7 +188,39 @@ window.DailiesUI = (function() {
         const container = document.getElementById('dailies-content');
         if (!container) return;
 
+        const puzzleOptions = todayContent.puzzle.options || [];
+        const correctIdx = Number(todayContent.puzzle.answerIndex);
+        const correctLabel = puzzleOptions[correctIdx] || "Solved";
+        const activePuzzleSelection = state.puzzleAttempted ? state.puzzleSelectedIndex : pendingPuzzleChoice;
+
         const activePollSelection = state.pollVote || pendingPollChoice;
+
+        const pollCardHtml = todayContent.poll ? `
+            <!-- 3. Daily Poll (18+ Residents Only) -->
+            <div class="daily-card ${state.pollVote ? 'completed' : ''}">
+                <div class="daily-card-top">
+                    <span class="daily-badge">📊 Daily Poll</span>
+                    <span class="daily-reward">+1 🎲 Gen 1</span>
+                </div>
+                <p class="daily-desc">${todayContent.poll.question}</p>
+                <div class="poll-options">
+                    ${todayContent.poll.options.map((opt, idx) => `
+                        <button class="poll-opt-btn ${activePollSelection === opt ? 'selected' : ''}" 
+                                data-opt="${opt}" data-index="${idx}" ${state.pollVote ? 'disabled' : ''}>
+                            ${opt}
+                        </button>
+                    `).join('')}
+                </div>
+                <button class="daily-btn poll-submit-btn" id="btn-submit-poll"
+                        ${(state.pollVote || !pendingPollChoice) ? 'disabled' : ''}>
+                    ${state.pollVote
+                        ? `Vote Submitted (${state.pollRewardText || 'Reward Claimed'})`
+                        : pendingPollChoice
+                            ? `Submit Vote: "${pendingPollChoice}"`
+                            : 'Select an option to submit'}
+                </button>
+            </div>
+        ` : '';
 
         container.innerHTML = `
             <div class="dailies-stack">
@@ -209,43 +239,46 @@ window.DailiesUI = (function() {
                 </div>
 
                 <!-- 2. Daily Puzzle -->
-                <div class="daily-card ${state.puzzleSolved ? 'completed' : ''}">
+                <div class="daily-card ${state.puzzleAttempted ? 'completed' : ''}">
                     <div class="daily-card-top">
                         <span class="daily-badge">🧩 Daily Puzzle</span>
                         <span class="daily-reward">+1 🎲 Gen 1</span>
                     </div>
                     <p class="daily-desc">${todayContent.puzzle.question}</p>
-                    <button class="daily-btn" id="btn-daily-puzzle" ${state.puzzleSolved ? 'disabled' : ''}>
-                        ${state.puzzleSolved
-                            ? `Solved: ${todayContent.puzzle.answer} (${state.puzzleRewardText || 'Reward Claimed'})`
-                            : 'Solve Today’s Puzzle'}
+                    <div class="poll-options">
+                        ${puzzleOptions.map((opt, idx) => {
+                            let extraStyle = '';
+                            let suffix = '';
+                            if (state.puzzleAttempted) {
+                                if (idx === correctIdx) {
+                                    extraStyle = 'border-color: #4ad66d; color: #4ad66d;';
+                                    suffix = ' ✅';
+                                } else if (idx === state.puzzleSelectedIndex) {
+                                    extraStyle = 'border-color: #f87171; color: #f87171;';
+                                    suffix = ' ❌';
+                                }
+                            }
+                            return `
+                                <button class="poll-opt-btn puzzle-opt-btn ${activePuzzleSelection === idx ? 'selected' : ''}" 
+                                        data-index="${idx}" style="${extraStyle}" ${state.puzzleAttempted ? 'disabled' : ''}>
+                                    ${opt}${suffix}
+                                </button>
+                            `;
+                        }).join('')}
+                    </div>
+                    <button class="daily-btn" id="btn-daily-puzzle"
+                            ${(state.puzzleAttempted || pendingPuzzleChoice === null) ? 'disabled' : ''}>
+                        ${state.puzzleAttempted
+                            ? (state.puzzleSolved
+                                ? `Correct! (${state.puzzleRewardText || 'Reward Claimed'})`
+                                : `Incorrect — Answer: ${correctLabel}`)
+                            : pendingPuzzleChoice !== null
+                                ? `Submit Answer: "${puzzleOptions[pendingPuzzleChoice]}"`
+                                : 'Select an answer to submit'}
                     </button>
                 </div>
 
-                <!-- 3. Daily Poll -->
-                <div class="daily-card ${state.pollVote ? 'completed' : ''}">
-                    <div class="daily-card-top">
-                        <span class="daily-badge">📊 Daily Poll</span>
-                        <span class="daily-reward">+1 🎲 Gen 1</span>
-                    </div>
-                    <p class="daily-desc">${todayContent.poll.question}</p>
-                    <div class="poll-options">
-                        ${todayContent.poll.options.map(opt => `
-                            <button class="poll-opt-btn ${activePollSelection === opt ? 'selected' : ''}" 
-                                    data-opt="${opt}" ${state.pollVote ? 'disabled' : ''}>
-                                ${opt}
-                            </button>
-                        `).join('')}
-                    </div>
-                    <button class="daily-btn poll-submit-btn" id="btn-submit-poll"
-                            ${(state.pollVote || !pendingPollChoice) ? 'disabled' : ''}>
-                        ${state.pollVote
-                            ? `Vote Submitted (${state.pollRewardText || 'Reward Claimed'})`
-                            : pendingPollChoice
-                                ? `Submit Vote: "${pendingPollChoice}"`
-                                : 'Select an option to submit'}
-                    </button>
-                </div>
+                ${pollCardHtml}
 
                 <!-- 4. Daily Advert (No Reward Button) -->
                 <div class="daily-card">
@@ -290,17 +323,43 @@ window.DailiesUI = (function() {
             });
         }
 
+        // Puzzle option selection
+        document.querySelectorAll('.puzzle-opt-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (state.puzzleAttempted) return;
+                pendingPuzzleChoice = Number(btn.dataset.index);
+                render();
+            });
+        });
+
+        // Puzzle answer submission (only awards collectible if correct)
         const puzzleBtn = document.getElementById('btn-daily-puzzle');
-        if (puzzleBtn && !state.puzzleSolved) {
+        if (puzzleBtn && !state.puzzleAttempted && pendingPuzzleChoice !== null) {
             puzzleBtn.addEventListener('click', () => {
-                state.puzzleSolved = true;
-                state.puzzleRewardText = awardPlayer(rollRandomGen1Reward(1));
+                const chosenIdx = pendingPuzzleChoice;
+                const isCorrect = chosenIdx === Number(todayContent.puzzle.answerIndex);
+
+                state.puzzleAttempted = true;
+                state.puzzleSelectedIndex = chosenIdx;
+                state.puzzleSolved = isCorrect;
+                pendingPuzzleChoice = null;
+
+                if (isCorrect) {
+                    state.puzzleRewardText = awardPlayer(rollRandomGen1Reward(1));
+                    if (window.UserAccountService) {
+                        window.UserAccountService.triggerHaptic(50);
+                    }
+                } else {
+                    state.puzzleRewardText = "";
+                }
+
                 persist();
                 render();
             });
         }
 
-        document.querySelectorAll('.poll-opt-btn').forEach(btn => {
+        // Poll option selection
+        document.querySelectorAll('.poll-opt-btn:not(.puzzle-opt-btn)').forEach(btn => {
             btn.addEventListener('click', () => {
                 if (state.pollVote) return;
                 pendingPollChoice = btn.dataset.opt;
@@ -308,10 +367,23 @@ window.DailiesUI = (function() {
             });
         });
 
+        // Poll submission (also records vote in Supabase poll_votes)
         const submitPollBtn = document.getElementById('btn-submit-poll');
-        if (submitPollBtn && !state.pollVote && pendingPollChoice) {
-            submitPollBtn.addEventListener('click', () => {
-                state.pollVote = pendingPollChoice;
+        if (submitPollBtn && !state.pollVote && pendingPollChoice && todayContent.poll) {
+            submitPollBtn.addEventListener('click', async () => {
+                const chosenOpt = pendingPollChoice;
+                const optIndex = todayContent.poll.options.indexOf(chosenOpt);
+                submitPollBtn.disabled = true;
+
+                try {
+                    if (window.GameAPI && optIndex >= 0 && navigator.onLine) {
+                        await window.GameAPI.submitPollVote(optIndex);
+                    }
+                } catch (err) {
+                    console.warn("Poll cloud submit warning:", err.message);
+                }
+
+                state.pollVote = chosenOpt;
                 pendingPollChoice = null;
                 state.pollRewardText = awardPlayer(rollRandomGen1Reward(1));
                 persist();
@@ -330,10 +402,9 @@ window.DailiesUI = (function() {
         }
     }
 
-
     // Preload external schedule once on startup
     loadScheduledContent().then(() => render());
 
     return { render, recordCacheClaim };
-
 })();
+

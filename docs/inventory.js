@@ -223,10 +223,64 @@ window.InventoryUI = (function() {
             });
         });
 
-        const combineBtn = document.getElementById('btn-forge-combine');
-        if (combineBtn) {
-            combineBtn.addEventListener('click', attemptCombine);
+        const combineBtn = document.getElementById('forge-combine-btn');
+        if (combineBtn && !combineBtn.disabled) {
+            combineBtn.addEventListener('click', async () => {
+                if (forgeSlots.length !== 2) return;
+                const [first, second] = forgeSlots;
+
+                // Prevent duplicate click while processing
+                combineBtn.disabled = true;
+
+                // 1. Verify recipe locally first
+                const recipeKey = Object.keys(GEN2_RECIPES).find(key => {
+                    const [reqA, reqB] = GEN2_RECIPES[key].ingredients;
+                    return (first === reqA && second === reqB) || (first === reqB && second === reqA);
+                });
+
+                if (!recipeKey) {
+                    const msgEl = document.getElementById('forge-message');
+                    if (msgEl) {
+                        msgEl.style.color = '#f87171';
+                        msgEl.textContent = `Nothing formed from ${first} + ${second}. Try a different pair!`;
+                    }
+                    forgeSlots = [];
+                    render();
+                    return;
+                }
+
+                // 2. Consume 1st-Gen resources and grant 2nd-Gen item locally
+                const consumed = CM.consumeResources({ [first]: 1, [second]: 1 });
+                if (consumed) {
+                    CM.addCraftedItem(recipeKey);
+                    const created = GEN2_RECIPES[recipeKey];
+
+                    if (window.UserAccountService) {
+                        window.UserAccountService.triggerHaptic(45);
+                    }
+
+                    // 3. Sync craft with Supabase when online
+                    if (window.GameAPI && navigator.onLine) {
+                        window.GameAPI.craftForgeItem(recipeKey).catch(err => {
+                            console.warn('Cloud forge sync warning:', err.message);
+                        });
+                    }
+
+                    forgeSlots = [];
+                    render();
+
+                    const msgEl = document.getElementById('forge-message');
+                    if (msgEl) {
+                        msgEl.style.color = '#4ad66d';
+                        msgEl.textContent = `✨ Forged ${created.icon} ${created.label}!`;
+                    }
+                } else {
+                    forgeSlots = [];
+                    render();
+                }
+            });
         }
+
 
         document.querySelectorAll('.gen1-box').forEach(btn => {
             btn.addEventListener('click', () => {
