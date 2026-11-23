@@ -8,7 +8,7 @@ window.UserAccountService = (function () {
         avatar: '🧭',
         avatarType: 'emoji',
         outcode: 'Visitor',
-        ageBracket: '18-24',
+        ageBracket: '18-34',
         isResident: false,
         updatedAt: null
     };
@@ -236,7 +236,7 @@ window.OverlaysUI = (function () {
                 </div>
 
                 <label class="field-label" for="profile-username">Explorer Username (20 characters max, no spaces or special characters)</label>
-                <input type="text" id="profile-username" class="modal-input" maxlength="24"
+                <input type="text" id="profile-username" class="modal-input" maxlength="20"
                        value="${profile.username.replace(/"/g, '&quot;')}" placeholder="Enter username" />
 
                 <label class="field-label" for="profile-outcode">Home Postcode (Outcode)</label>
@@ -264,7 +264,7 @@ window.OverlaysUI = (function () {
 
                         <label class="field-label" for="profile-password">Create Password</label>
                         <input type="password" id="profile-password" class="modal-input" minlength="6" placeholder="Min 6 characters" />
-                        <p class="field-hint">Links your progress permanently and unlocks BS district leaderboards.</p>
+                        <p class="field-hint">Links your progress permanently and unlocks BS district leaderboards and daily fun bits.</p>
                     ` : `
                         <p class="field-hint">✅ Registered BS Resident — your discoveries count toward the ${profile.outcode} leaderboard.</p>
                     `}

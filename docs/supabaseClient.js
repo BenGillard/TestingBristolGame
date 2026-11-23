@@ -62,6 +62,12 @@ const GameAPI = {
 
   // Upgrade Visitor to a permanent Resident account (BS1–BS49 + Age Bracket + Email/Password)
   async upgradeToResident({ email, password, username, avatar, avatarType, outcode, ageBracket }) {
+    // Ensure an anonymous session exists before linking email/password
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) {
+      await this.initSession();
+    }
+
     // 1. Link email & password to the existing anonymous user ID
     const { error: authError } = await sb.auth.updateUser({ email, password });
     if (authError) throw authError;
@@ -77,8 +83,63 @@ const GameAPI = {
     });
     if (rpcError) throw rpcError;
 
+    // 3. Flush any pending offline claims first
+    await this.flushOfflineQueue();
+
+    // 4. Gather Visitor's 1st Gen, 2nd Gen, and Discovered Recipes from CollectibleManager
+    const itemsMap = new Map();
+    const CM = window.CollectibleManager;
+
+    if (CM) {
+      // 1st Generation resources (stone, wood, water, metal, etc.)
+      const gen1 = CM.getInventory() || {};
+      Object.entries(gen1).forEach(([item_key, quantity]) => {
+        if (quantity > 0) {
+          itemsMap.set(item_key, { item_key, quantity, discovered_recipe: false });
+        }
+      });
+
+      // 2nd Generation crafted items (paper, clay, sparks, timber, cobble, steam)
+      const gen2 = CM.getCrafted() || {};
+      Object.entries(gen2).forEach(([item_key, quantity]) => {
+        if (quantity > 0) {
+          itemsMap.set(item_key, { item_key, quantity, discovered_recipe: true });
+        }
+      });
+
+      // Ensure unlocked recipes are preserved even if current crafted quantity is 0
+      const discovered = CM.getDiscovered() || [];
+      discovered.forEach(item_key => {
+        const existing = itemsMap.get(item_key);
+        itemsMap.set(item_key, {
+          item_key,
+          quantity: existing ? existing.quantity : 0,
+          discovered_recipe: true
+        });
+      });
+    } else {
+      // Fallback to cached inventory if CollectibleManager isn't mounted
+      const cached = JSON.parse(localStorage.getItem(this.CACHE_KEYS.INVENTORY) || '[]');
+      if (Array.isArray(cached)) {
+        cached.forEach(item => itemsMap.set(item.item_key, item));
+      }
+    }
+
+    // 5. Sync merged items up to Supabase
+    const itemsPayload = Array.from(itemsMap.values());
+    if (itemsPayload.length > 0) {
+      const { error: syncError } = await sb.rpc('sync_local_inventory', {
+        p_items: itemsPayload
+      });
+      if (syncError) throw syncError;
+    }
+
+    // 6. Refresh local cache with authoritative server inventory
+    await this.getInventory();
+
     return true;
   },
+
 
   // Update Visitor profile (or existing Resident details without re-linking auth)
   async updateProfile({ username, avatar, avatarType, outcode = 'Visitor', ageBracket = null, isResident = false }) {
