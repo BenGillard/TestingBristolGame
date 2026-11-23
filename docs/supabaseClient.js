@@ -333,24 +333,12 @@ const GameAPI = {
       .select('*');
     if (error) throw error;
     return data || [];
-  }
-};
+  },
 
-// Automatically sync offline claims when connection restores or iOS Safari wakes up
-window.addEventListener('online', () => GameAPI.flushOfflineQueue());
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') {
-    GameAPI.flushOfflineQueue();
-    GameAPI.getTodaySchedule(); // Refresh if Bristol midnight passed while asleep
-  }
-});
-
-window.GameAPI = GameAPI;
-
-// ==========================================================================
-// 5. FEEDBACK & ERROR REPORTING
-// ==========================================================================
-// Submit a bug report or improvement suggestion from the Settings modal
+  // ==========================================================================
+  // 5. FEEDBACK & ERROR REPORTING
+  // ==========================================================================
+  // Submit a bug report or improvement suggestion from the Settings modal
   async submitFeedback({ message, category = 'bug' }) {
     const { data: { session } } = await sb.auth.getSession();
     if (!session) {
@@ -372,5 +360,17 @@ window.GameAPI = GameAPI;
     if (error) throw error;
     return true;
   }
+};
 
+
+// Automatically sync offline claims when connection restores or iOS Safari wakes up
+window.addEventListener('online', () => GameAPI.flushOfflineQueue());
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    GameAPI.flushOfflineQueue();
+    GameAPI.getTodaySchedule(); // Refresh if Bristol midnight passed while asleep
+  }
+});
+
+window.GameAPI = GameAPI;
 
