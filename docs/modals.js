@@ -4,7 +4,7 @@ window.UserAccountService = (function () {
 
     const DEFAULT_PROFILE = {
         userId: null,
-        username: 'Bristol Explorer',
+        username: 'BristolExplorer123',
         avatar: '🧭',
         avatarType: 'emoji',
         outcode: 'Visitor',
