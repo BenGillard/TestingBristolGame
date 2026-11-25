@@ -5,6 +5,7 @@ window.UserAccountService = (function () {
     const DEFAULT_PROFILE = {
         userId: null,
         username: 'BristolExplorer123',
+        email: null,
         avatar: '🧭',
         avatarType: 'emoji',
         outcode: 'Visitor',
@@ -43,6 +44,10 @@ window.UserAccountService = (function () {
     }
 
     async function deleteAccount() {
+        if (window.GameAPI && typeof window.GameAPI.deleteAccount === 'function') {
+        await window.GameAPI.deleteAccount();
+        }
+
         localStorage.removeItem(PROFILE_KEY);
         localStorage.removeItem(SETTINGS_KEY);
         localStorage.removeItem('bristol_game_save_v1');
@@ -250,6 +255,7 @@ window.OverlaysUI = (function () {
                                 <div id="resident-upgrade-fields" style="display: ${showResidentFields ? 'flex' : 'none'}; flex-direction: column; gap: 10px; margin-top: 6px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.12);">
                     <div class="settings-group-title">Resident Leaderboard Registration</div>
 
+                    <label class="field-label" for="profile-age-bracket">Age Bracket</label>
                     <select id="profile-age-bracket" class="modal-input">
                         ${[
                             { value: 'under_18', label: 'Under 18' },
@@ -263,22 +269,39 @@ window.OverlaysUI = (function () {
                         `).join('')}
                     </select>
 
-
                     ${!isCurrentlyResident ? `
-                        <label class="field-label" for="profile-email">Email Address</label>
+                        <label class="field-label" for="profile-email">Recovery Email Address</label>
                         <input type="email" id="profile-email" class="modal-input" placeholder="you@example.com" />
-
-                        <label class="field-label" for="profile-password">Create Password</label>
-                        <input type="password" id="profile-password" class="modal-input" minlength="6" placeholder="Min 6 characters" />
-                        <p class="field-hint">Links your progress permanently and unlocks BS district leaderboards and daily fun bits.</p>
+                        <p class="field-hint">Links your progress so you can recover your account on a new phone and join BS district leaderboards.</p>
                     ` : `
-                        <p class="field-hint">✅ Registered BS Resident — your discoveries count toward the ${profile.outcode} leaderboard.</p>
+                        <p class="field-hint">✅ Registered BS Resident (${profile.email || 'Verified'}) — your discoveries count toward the ${profile.outcode} leaderboard.</p>
                     `}
+
                 </div>
 
                 <button type="button" id="save-profile-btn" class="modal-primary-btn">Save Profile</button>
                 <div id="profile-save-msg" class="modal-feedback"></div>
 
+                ${!isCurrentlyResident ? `
+                    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.12);">
+                        <button type="button" id="toggle-recover-btn" class="upload-photo-btn" style="width: 100%; justify-content: center;">
+                            📲 Already a Resident? Recover Account
+                        </button>
+                        <div id="recover-account-box" style="display: none; flex-direction: column; gap: 8px; margin-top: 10px;">
+                            <label class="field-label" for="recover-email">Registered Email</label>
+                            <input type="email" id="recover-email" class="modal-input" placeholder="you@example.com" />
+                            <button type="button" id="send-recovery-btn" class="modal-primary-btn">Send Recovery Code</button>
+
+                            <div id="recover-otp-step" style="display: none; flex-direction: column; gap: 8px; margin-top: 6px;">
+                                <label class="field-label" for="recover-otp">6-Digit Email Code</label>
+                                <input type="text" id="recover-otp" class="modal-input" inputmode="numeric" maxlength="6" placeholder="123456" />
+                                <button type="button" id="verify-recovery-btn" class="modal-primary-btn">Verify & Restore Progress</button>
+                            </div>
+                            <div id="recover-status-msg" class="modal-feedback"></div>
+                        </div>
+                    </div>
+                ` : ''}
+               
                 <div class="danger-zone">
                     <div class="danger-title">Account Data</div>
                     <p class="field-hint">Permanently erase your explorer profile, inventory, and local progress.</p>
@@ -337,7 +360,7 @@ window.OverlaysUI = (function () {
         saveBtn.addEventListener('click', async () => {
             const msg = document.getElementById('profile-save-msg');
             const rawName = document.getElementById('profile-username').value.trim();
-            const username = rawName.length >= 2 ? rawName : 'BristolExplorer123';
+            const username = rawName.length >= 3 ? rawName : 'BristolExplorer123';
             const outcode = outcodeSelect.value;
             const isVisitor = outcode === 'Visitor';
 
@@ -369,15 +392,13 @@ window.OverlaysUI = (function () {
                 } else if (!isCurrentlyResident) {
                     const ageBracket = document.getElementById('profile-age-bracket').value;
                     const email = document.getElementById('profile-email').value.trim();
-                    const password = document.getElementById('profile-password').value;
 
-                    if (!email || password.length < 6) {
-                        throw new Error('Enter a valid email and a password of at least 6 characters.');
+                    if (!email || !email.includes('@')) {
+                      throw new Error('Enter a valid recovery email address.');
                     }
 
                     await window.GameAPI.upgradeToResident({
                         email,
-                        password,
                         username,
                         avatar: selectedAvatar,
                         avatarType: selectedAvatarType,
@@ -387,6 +408,7 @@ window.OverlaysUI = (function () {
 
                     const saved = await window.UserAccountService.saveProfile({
                         username,
+                        email,
                         avatar: selectedAvatar,
                         avatarType: selectedAvatarType,
                         outcode,
@@ -410,6 +432,7 @@ window.OverlaysUI = (function () {
                     }
                     const saved = await window.UserAccountService.saveProfile({
                         username,
+                        email,
                         avatar: selectedAvatar,
                         avatarType: selectedAvatarType,
                         outcode,
@@ -429,6 +452,61 @@ window.OverlaysUI = (function () {
             setTimeout(() => { msg.textContent = ''; }, 3000);
         });
 
+        // ACCOUNT RECOVERY HANDLERS
+        const toggleRecoverBtn = document.getElementById('toggle-recover-btn');
+        if (toggleRecoverBtn) {
+            const recoverBox = document.getElementById('recover-account-box');
+            const sendRecoveryBtn = document.getElementById('send-recovery-btn');
+            const verifyRecoveryBtn = document.getElementById('verify-recovery-btn');
+            const recoverMsg = document.getElementById('recover-status-msg');
+
+            toggleRecoverBtn.addEventListener('click', () => {
+                recoverBox.style.display = recoverBox.style.display === 'none' ? 'flex' : 'none';
+            });
+
+            sendRecoveryBtn.addEventListener('click', async () => {
+                const email = document.getElementById('recover-email').value.trim();
+                if (!email) return;
+                sendRecoveryBtn.disabled = true;
+                recoverMsg.style.color = '#00b4d8';
+                recoverMsg.textContent = 'Sending 6-digit code...';
+                try {
+                    await window.GameAPI.sendRecoveryCode(email);
+                    document.getElementById('recover-otp-step').style.display = 'flex';
+                    recoverMsg.style.color = '#4ad66d';
+                    recoverMsg.textContent = 'Check your email for the 6-digit recovery code.';
+                } catch (err) {
+                    recoverMsg.style.color = '#f87171';
+                    recoverMsg.textContent = err.message || 'Could not send recovery code.';
+                } finally {
+                    sendRecoveryBtn.disabled = false;
+                }
+            });
+
+            verifyRecoveryBtn.addEventListener('click', async () => {
+                const email = document.getElementById('recover-email').value.trim();
+                const token = document.getElementById('recover-otp').value.trim();
+                if (token.length < 6) return;
+                verifyRecoveryBtn.disabled = true;
+                recoverMsg.style.color = '#00b4d8';
+                recoverMsg.textContent = 'Restoring account...';
+                try {
+                    await window.GameAPI.verifyRecoveryCode(email, token);
+                    window.UserAccountService.triggerHaptic(50);
+                    recoverMsg.style.color = '#4ad66d';
+                    recoverMsg.textContent = 'Account restored! Reloading...';
+                    setTimeout(() => location.reload(), 900);
+                } catch (err) {
+                    recoverMsg.style.color = '#f87171';
+                    recoverMsg.textContent = err.message || 'Invalid or expired code.';
+                    verifyRecoveryBtn.disabled = false;
+                }
+            });
+
+    
+    }
+
+
         let confirmDeleteArmed = false;
         const delBtn = document.getElementById('delete-account-btn');
         delBtn.addEventListener('click', async () => {
@@ -439,12 +517,29 @@ window.OverlaysUI = (function () {
                 return;
             }
 
-            await window.UserAccountService.deleteAccount();
-            window.UserAccountService.triggerHaptic(100);
-            closeModal();
-            alert('Your account and local progress have been permanently deleted.');
-            location.reload();
+            if (!navigator.onLine) {
+                alert('Please connect to the internet to delete your server profile.');
+                return;
+            }
+
+            delBtn.disabled = true;
+            delBtn.textContent = 'Deleting...';
+
+            try {
+                await window.UserAccountService.deleteAccount();
+                window.UserAccountService.triggerHaptic(100);
+                closeModal();
+                alert('Your account and local progress have been permanently deleted.');
+                location.reload();
+            } catch (err) {
+                delBtn.disabled = false;
+                confirmDeleteArmed = false;
+                delBtn.classList.remove('armed');
+                delBtn.textContent = 'Delete Account';
+                alert(err.message || 'Could not delete account. Please try again.');
+            }
         });
+
     }
 
     function openSettingsModal() {
