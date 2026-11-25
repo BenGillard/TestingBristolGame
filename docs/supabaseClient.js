@@ -166,6 +166,17 @@ const GameAPI = {
     return true;
   },
 
+  // Delete the current Resident account and all associated data (irreversible)
+    async deleteAccount() {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) {
+      const { error } = await sb.rpc('delete_my_account');
+      if (error) throw error;
+      await sb.auth.signOut();
+    }
+    Object.values(this.CACHE_KEYS).forEach(key => localStorage.removeItem(key));
+    return true;
+  },
 
   // ==========================================================================
   // 2. INVENTORY & ANTI-CHEAT CLAIMING (With Offline Queue)

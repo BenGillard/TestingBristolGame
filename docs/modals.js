@@ -250,12 +250,19 @@ window.OverlaysUI = (function () {
                                 <div id="resident-upgrade-fields" style="display: ${showResidentFields ? 'flex' : 'none'}; flex-direction: column; gap: 10px; margin-top: 6px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.12);">
                     <div class="settings-group-title">Resident Leaderboard Registration</div>
 
-                    <label class="field-label" for="profile-age-bracket">Age Bracket</label>
                     <select id="profile-age-bracket" class="modal-input">
-                        ${['Under 18', '18-34', '35-49', '50-64', '65-79', '80'].map(bracket => `
-                            <option value="${bracket}" ${profile.ageBracket === bracket ? 'selected' : ''}>${bracket}</option>
+                        ${[
+                            { value: 'under_18', label: 'Under 18' },
+                            { value: '18_24', label: '18-24' },
+                            { value: '25_34', label: '25-34' },
+                            { value: '35_44', label: '35-44' },
+                            { value: '45_54', label: '45-54' },
+                            { value: '55_plus', label: '55+' }
+                        ].map(b => `
+                            <option value="${b.value}" ${profile.ageBracket === b.value ? 'selected' : ''}>${b.label}</option>
                         `).join('')}
                     </select>
+
 
                     ${!isCurrentlyResident ? `
                         <label class="field-label" for="profile-email">Email Address</label>

@@ -42,13 +42,17 @@ window.UserAccountService = (function () {
         return next;
     }
 
+    // Account deletion should remove all local data and also call your backend to delete the user record
     async function deleteAccount() {
-        // Future DB hook: await supabase.rpc('delete_user_account');
+        if (window.GameAPI && typeof window.GameAPI.deleteAccount === 'function') {
+            await window.GameAPI.deleteAccount();
+        }
         localStorage.removeItem(PROFILE_KEY);
         localStorage.removeItem(SETTINGS_KEY);
         localStorage.removeItem('bristol_game_save_v1');
         localStorage.removeItem('bristol_dailies_v1');
     }
+
 
     function getSettings() {
         try {
@@ -256,13 +260,29 @@ window.OverlaysUI = (function () {
                 return;
             }
 
-            await window.UserAccountService.deleteAccount();
-            window.UserAccountService.triggerHaptic(100);
-            closeModal();
-            alert('Your account and local progress have been permanently deleted.');
-            location.reload();
+            if (!navigator.onLine) {
+                alert('Please connect to the internet to delete your server profile.');
+                return;
+            }
+
+            delBtn.disabled = true;
+            delBtn.textContent = 'Deleting...';
+
+            try {
+                await window.UserAccountService.deleteAccount();
+                window.UserAccountService.triggerHaptic(100);
+                closeModal();
+                alert('Your server account and local progress have been permanently deleted.');
+                location.reload();
+            } catch (err) {
+                delBtn.disabled = false;
+                confirmDeleteArmed = false;
+                delBtn.classList.remove('armed');
+                delBtn.textContent = 'Delete Account';
+                alert(err.message || 'Could not delete account. Please try again.');
+            }
         });
-        }
+
 
     function openSettingsModal() {
         const settings = window.UserAccountService.getSettings();
