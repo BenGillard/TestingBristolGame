@@ -8,7 +8,7 @@ window.UserAccountService = (function () {
         avatar: '🧭',
         avatarType: 'emoji',
         outcode: 'Visitor',
-        ageBracket: '18-34',
+        ageBracket: '25_34',
         isResident: false,
         updatedAt: null
     };
@@ -337,7 +337,7 @@ window.OverlaysUI = (function () {
         saveBtn.addEventListener('click', async () => {
             const msg = document.getElementById('profile-save-msg');
             const rawName = document.getElementById('profile-username').value.trim();
-            const username = rawName.length >= 2 ? rawName : 'Bristol Explorer';
+            const username = rawName.length >= 2 ? rawName : 'BristolExplorer123';
             const outcode = outcodeSelect.value;
             const isVisitor = outcode === 'Visitor';
 
