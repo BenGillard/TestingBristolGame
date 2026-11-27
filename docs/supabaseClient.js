@@ -60,16 +60,16 @@ const GameAPI = {
     return session.user;
   },
 
-   // Upgrade Visitor to a permanent Resident account (BS1–BS49 + Age Bracket + Email/Password)
-  async upgradeToResident({ email, password, username, avatar, avatarType, outcode, ageBracket }) {
-    // Ensure an anonymous session exists before linking email/password
+   // Upgrade Visitor to a permanent Resident account (BS1–BS49 + Age Bracket + Email)
+  async upgradeToResident({ email, username, avatar, avatarType, outcode, ageBracket }) {
+    // Ensure an anonymous session exists before linking email
     const { data: { session } } = await sb.auth.getSession();
     if (!session) {
       await this.initSession();
     }
 
-    // 1. Link email & password to the existing anonymous user ID
-    const { error: authError } = await sb.auth.updateUser({ email, password });
+    // 1. Link email to the existing anonymous user ID
+    const { error: authError } = await sb.auth.updateUser({ email });
     if (authError) throw authError;
 
     // 2. Save validated Resident profile details via secure RPC

@@ -268,8 +268,6 @@ window.OverlaysUI = (function () {
                         <label class="field-label" for="profile-email">Email Address</label>
                         <input type="email" id="profile-email" class="modal-input" placeholder="you@example.com" />
 
-                        <label class="field-label" for="profile-password">Create Password</label>
-                        <input type="password" id="profile-password" class="modal-input" minlength="6" placeholder="Min 6 characters" />
                         <p class="field-hint">Links your progress permanently and unlocks BS district leaderboards and daily fun bits.</p>
                     ` : `
                         <p class="field-hint">✅ Registered BS Resident — your discoveries count toward the ${profile.outcode} leaderboard.</p>
@@ -369,15 +367,13 @@ window.OverlaysUI = (function () {
                 } else if (!isCurrentlyResident) {
                     const ageBracket = document.getElementById('profile-age-bracket').value;
                     const email = document.getElementById('profile-email').value.trim();
-                    const password = document.getElementById('profile-password').value;
 
-                    if (!email || password.length < 6) {
-                        throw new Error('Enter a valid email and a password of at least 6 characters.');
+                    if (!email) {
+                        throw new Error('Enter a valid email.');
                     }
 
                     await window.GameAPI.upgradeToResident({
                         email,
-                        password,
                         username,
                         avatar: selectedAvatar,
                         avatarType: selectedAvatarType,
