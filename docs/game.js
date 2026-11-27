@@ -167,6 +167,7 @@ window.addEventListener('load', async () => {
     }
 
     // In game.js, stop before Auth Session if window.sb failed to initialize:
+    // In game.js, stop before Auth Session if window.sb failed to initialize:
     if (!window.GameAPI) {
         if (window.showDebugError) window.showDebugError('0. Script Load', 'supabaseClient.js did not load');
     } else if (!window.sb) {
@@ -174,10 +175,38 @@ window.addEventListener('load', async () => {
     } else {
         try {
             const user = await window.GameAPI.initSession();
-        if (!user) throw new Error('Anonymous sign-in returned no user (check Supabase Auth settings)');
-    } catch (err) {
-        window.showDebugError('2. Auth Session', err);
+            if (!user) throw new Error('Anonymous sign-in returned no user (check Supabase Auth settings)');
+        } catch (err) {
+            if (window.showDebugError) window.showDebugError('2. Auth Session', err);
+        }
+
+        // Flush any queued offline claims/crafts BEFORE pulling server state
+        try {
+            if (navigator.onLine && window.GameAPI.flushOfflineQueue) {
+                await window.GameAPI.flushOfflineQueue();
+            }
+        } catch (err) {
+            console.warn('Offline queue flush warning:', err);
+        }
+
+        try {
+            if (window.CollectibleManager?.syncFromServer) {
+                await window.CollectibleManager.syncFromServer();
+            }
+        } catch (err) {
+            if (window.showDebugError) window.showDebugError('3. Inventory Sync', err);
+        }
+
+        try {
+            if (window.DailiesUI?.loadScheduledContent) {
+                await window.DailiesUI.loadScheduledContent();
+                window.DailiesUI.render();
+            }
+        } catch (err) {
+            if (window.showDebugError) window.showDebugError('4. Daily Schedule', err);
+        }
     }
+
 
     try {
         if (window.CollectibleManager?.syncFromServer) {
@@ -225,6 +254,45 @@ if (!window.InventoryUI) {
     }
 
     updateInventoryUI();
+
+    // --- TEMP TEST BUTTON (REMOVE BEFORE PRODUCTION) ---
+    const debugGrantBtn = document.createElement('button');
+    debugGrantBtn.id = 'debug-grant-btn';
+    debugGrantBtn.textContent = '+2 All (Test)';
+    debugGrantBtn.style.cssText = `
+        position: fixed; top: 76px; left: 12px; z-index: 9998;
+        padding: 8px 12px; background: #ffb703; color: #0d1b2a;
+        border: 2px solid #0d1b2a; border-radius: 8px;
+        font-weight: bold; font-size: 12px; cursor: pointer;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    `;
+    document.body.appendChild(debugGrantBtn);
+
+    debugGrantBtn.addEventListener('click', async () => {
+        ['stone', 'wood', 'water', 'metal'].forEach(type => {
+            CM.grantResource(type, 2);
+        });
+        updateInventoryUI();
+        window.dispatchEvent(new Event('inventorySynced'));
+
+        if (statusDisplay) {
+            statusDisplay.textContent = 'TEST: Added +2 Stone, Wood, Water & Metal';
+            statusDisplay.style.color = '#ffb703';
+        }
+
+        if (navigator.onLine && window.GameAPI?.syncLocalInventory) {
+            try {
+                await window.GameAPI.syncLocalInventory(CM.getInventory(), 0);
+            } catch (err) {
+                console.warn('Test sync warning:', err);
+            }
+        }
+    });
+    
+    // ---------------------------------------------------
+
+    // --------------------------------------------------
+
 
         // Full BS Postcode Area Bounds (Clevedon/Weston-super-Mare to Yate/Thornbury & Mendips)
     const BRISTOL_BOUNDS = L.latLngBounds([51.2700, -3.0600], [51.6750, -2.3700]);
@@ -443,13 +511,24 @@ if (!window.InventoryUI) {
     }
 
     // Handle mobile browser sleep / wake cycles cleanly
-    document.addEventListener('visibilitychange', () => {
+    document.addEventListener('visibilitychange', async () => {
         if (document.visibilityState === 'visible') {
             renderAllNodes(); // Catch up if 4:00 PM / midnight reset passed while asleep
             lastValidFix = null; // Prevent false teleport flag on wake
-            if (CM?.syncFromServer) CM.syncFromServer();
+            if (navigator.onLine && window.GameAPI?.flushOfflineQueue) {
+                await window.GameAPI.flushOfflineQueue();
+            }
+            if (CM?.syncFromServer) await CM.syncFromServer();
         }
     });
+
+    // Automatically replay offline queue the moment connection returns
+    window.addEventListener('online', async () => {
+        if (window.GameAPI?.flushOfflineQueue) {
+            await window.GameAPI.flushOfflineQueue();
+        }
+    });
+
 
 
     function startGPS() {

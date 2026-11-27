@@ -36,14 +36,34 @@ window.CollectibleManager = (function() {
 }
 
 async function syncFromServer() {
-    if (!window.GameAPI) return;
+    if (!window.GameAPI || !navigator.onLine) return;
+
+    // 1. Never overwrite local state while offline actions are waiting to flush
+    const pendingQueue = window.GameAPI._getQueue
+        ? window.GameAPI._getQueue()
+        : JSON.parse(localStorage.getItem(window.GameAPI.CACHE_KEYS?.QUEUE) || '[]');
+    if (pendingQueue.length > 0) return;
+
     try {
         const rows = await window.GameAPI.getInventory();
-        applyServerInventory(rows);
+        const localTotal = Object.values(saveData.inventory || {}).reduce((s, n) => s + (n || 0), 0)
+                         + Object.values(saveData.crafted || {}).reduce((s, n) => s + (n || 0), 0);
+
+        if (Array.isArray(rows) && rows.length > 0) {
+            // Cloud has items -> apply authoritative server state
+            applyServerInventory(rows);
+        } else if (localTotal > 0 && window.GameAPI.syncLocalInventory) {
+            // Cloud is empty (e.g., Visitor played offline before first sync) -> upload local save
+            const synced = await window.GameAPI.syncLocalInventory(saveData.inventory, 0);
+            if (Array.isArray(synced) && synced.length > 0) {
+                applyServerInventory(synced);
+            }
+        }
     } catch (err) {
         console.warn('Inventory sync skipped (offline):', err.message);
     }
 }
+
 
 
     async function loadLandmarkCollectibles(geoJsonUrl) {
@@ -242,29 +262,28 @@ async function syncFromServer() {
         ];
     }
 
-    function claimNode(node) {
-        saveData.inventory[node.type] = (saveData.inventory[node.type] || 0) + 1;
-        if (node.isScheduled) {
-            if (!saveData.claimedScheduledKeys) saveData.claimedScheduledKeys = [];
-            saveData.claimedScheduledKeys.push(node.id);
-        } else if (node.tier === "global") {
-            saveData.claimedGlobalIds.push(node.id);
-        } else {
-            const target = saveData.personalNodes.find(n => n.id === node.id);
-            if (target) target.claimed = true;
-        }
-        persist();
-        if (window.GameAPI) {
-            window.GameAPI.claimCollectible(node.type, node.lat, node.lng).catch(err => {
-                console.warn('Cloud claim sync warning:', err.message);
-                // Re-sync from server so rejected claims don't leave ghost items locally
-                syncFromServer();
-            });
-        }
-
-
-        return RESOURCE_STYLES[node.type];
+function claimNode(node) {
+    saveData.inventory[node.type] = (saveData.inventory[node.type] || 0) + 1;
+    if (node.isScheduled) {
+        if (!saveData.claimedScheduledKeys) saveData.claimedScheduledKeys = [];
+        saveData.claimedScheduledKeys.push(node.id);
+    } else if (node.tier === "global") {
+        saveData.claimedGlobalIds.push(node.id);
+    } else {
+        const target = saveData.personalNodes.find(n => n.id === node.id);
+        if (target) target.claimed = true;
     }
+    persist();
+
+    if (window.GameAPI) {
+        window.GameAPI.claimCollectible(node.type, node.lat, node.lng).catch(err => {
+            console.warn('Cloud claim sync warning:', err.message);
+        });
+    }
+
+    return RESOURCE_STYLES[node.type];
+}
+
 
 
     function grantResource(type, amount = 1) {
