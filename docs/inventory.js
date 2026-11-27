@@ -79,14 +79,8 @@ window.InventoryUI = (function() {
             if (window.GameAPI) {
                 try {
                     const res = await window.GameAPI.craftForgeItem(match.id);
-                    if (res?.status === 'queued_offline') {
-                        // Offline: optimistically update local cache until signal returns
                         CM.consumeResources(costMap);
                         CM.addCraftedItem(match.id);
-                    } else if (res?.inventory && CM.applyServerInventory) {
-                        // Online: apply exact server inventory immediately
-                        CM.applyServerInventory(res.inventory);
-                    }
                 } catch (err) {
                     forgeMessage = err.message || "Insufficient ingredients.";
                     forgeStatusType = "fail";

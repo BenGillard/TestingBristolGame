@@ -12,57 +12,62 @@ window.CollectibleManager = (function() {
     let SCHEDULED_COLLECTIBLES = [];
 
     function applyServerInventory(rows) {
-    if (!Array.isArray(rows)) return;
-    const gen1Keys = Object.keys(RESOURCE_STYLES);
+        if (!Array.isArray(rows)) return;
 
-    // Reset counts before applying authoritative server state
-    gen1Keys.forEach(k => { saveData.inventory[k] = 0; });
-    saveData.crafted = {};
-    saveData.discovered = [];
+        const gen1Keys = ['stone', 'wood', 'water', 'metal'];
+        gen1Keys.forEach(k => { saveData.inventory[k] = 0; });
+        saveData.crafted = {};
+        if (!Array.isArray(saveData.discovered)) saveData.discovered = [];
 
-    rows.forEach(row => {
-        if (gen1Keys.includes(row.item_key)) {
-            saveData.inventory[row.item_key] = row.quantity;
-        } else {
-            saveData.crafted[row.item_key] = row.quantity;
-            if (row.discovered_recipe && !saveData.discovered.includes(row.item_key)) {
-                saveData.discovered.push(row.item_key);
+        rows.forEach(row => {
+            const key = row.item_key;
+            const qty = Number(row.quantity) || 0;
+            if (gen1Keys.includes(key)) {
+                saveData.inventory[key] = qty;
+            } else {
+                if (qty > 0) {
+                    saveData.crafted[key] = qty;
+                }
+                if ((row.discovered_recipe || qty > 0) && !saveData.discovered.includes(key)) {
+                    saveData.discovered.push(key);
+                }
             }
-        }
-    });
+        });
 
-    persist();
-    window.dispatchEvent(new Event('inventorySynced'));
-}
-
-async function syncFromServer() {
-    if (!window.GameAPI || !navigator.onLine) return;
-
-    // 1. Never overwrite local state while offline actions are waiting to flush
-    const pendingQueue = window.GameAPI._getQueue
-        ? window.GameAPI._getQueue()
-        : JSON.parse(localStorage.getItem(window.GameAPI.CACHE_KEYS?.QUEUE) || '[]');
-    if (pendingQueue.length > 0) return;
-
-    try {
-        const rows = await window.GameAPI.getInventory();
-        const localTotal = Object.values(saveData.inventory || {}).reduce((s, n) => s + (n || 0), 0)
-                         + Object.values(saveData.crafted || {}).reduce((s, n) => s + (n || 0), 0);
-
-        if (Array.isArray(rows) && rows.length > 0) {
-            // Cloud has items -> apply authoritative server state
-            applyServerInventory(rows);
-        } else if (localTotal > 0 && window.GameAPI.syncLocalInventory) {
-            // Cloud is empty (e.g., Visitor played offline before first sync) -> upload local save
-            const synced = await window.GameAPI.syncLocalInventory(saveData.inventory, 0);
-            if (Array.isArray(synced) && synced.length > 0) {
-                applyServerInventory(synced);
-            }
-        }
-    } catch (err) {
-        console.warn('Inventory sync skipped (offline):', err.message);
+        persist();
+        window.dispatchEvent(new Event('inventorySynced'));
     }
-}
+
+
+
+    async function syncFromServer() {
+        if (!window.GameAPI || !navigator.onLine) return;
+
+        // 1. Never overwrite local state while offline actions are waiting to flush
+        const pendingQueue = window.GameAPI._getQueue
+            ? window.GameAPI._getQueue()
+            : JSON.parse(localStorage.getItem(window.GameAPI.CACHE_KEYS?.QUEUE) || '[]');
+        if (pendingQueue.length > 0) return;
+
+        try {
+            const rows = await window.GameAPI.getInventory();
+            const localTotal = Object.values(saveData.inventory || {}).reduce((s, n) => s + (n || 0), 0)
+                            + Object.values(saveData.crafted || {}).reduce((s, n) => s + (n || 0), 0);
+
+            if (Array.isArray(rows) && rows.length > 0) {
+                // Cloud has items -> apply authoritative server state
+                applyServerInventory(rows);
+            } else if (localTotal > 0 && window.GameAPI.syncLocalInventory) {
+                // Cloud is empty (e.g., Visitor played offline before first sync) -> upload local save
+                const synced = await window.GameAPI.syncLocalInventory(saveData.inventory, 0);
+                if (Array.isArray(synced) && synced.length > 0) {
+                    applyServerInventory(synced);
+                }
+            }
+        } catch (err) {
+            console.warn('Inventory sync skipped (offline):', err.message);
+        }
+    }
 
 
 
