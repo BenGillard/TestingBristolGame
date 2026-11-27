@@ -200,124 +200,137 @@ const GameAPI = {
     }
   },
 
-  _enqueueOfflineAction(action) {
-  const queue = JSON.parse(localStorage.getItem(this.CACHE_KEYS.QUEUE) || '[]');
-  queue.push({
-    ...action,
-    queuedAt: new Date().toISOString()
-  });
-  localStorage.setItem(this.CACHE_KEYS.QUEUE, JSON.stringify(queue));
-},
+  // Helper: Safely read and write the unified action queue
+  _getQueue() {
+    try {
+      return JSON.parse(localStorage.getItem(this.CACHE_KEYS.QUEUE) || '[]');
+    } catch {
+      return [];
+    }
+  },
 
-  // Claim a collectible (queues locally if signal drops in tunnels/pubs)
+  _saveQueue(queue) {
+    localStorage.setItem(this.CACHE_KEYS.QUEUE, JSON.stringify(queue));
+  },
+
+  _enqueueAction(action) {
+    const queue = this._getQueue();
+    queue.push({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      ...action,
+      queuedAt: new Date().toISOString()
+    });
+    this._saveQueue(queue);
+  },
+
+  // Unified Claim: Always enqueues locally first, then triggers serial flush
   async claimCollectible(itemKey, lat, lng, claimedAt = new Date().toISOString()) {
-    const queue = JSON.parse(localStorage.getItem(this.CACHE_KEYS.QUEUE) || '[]');
+    this._enqueueAction({
+      type: 'claim',
+      itemKey,
+      lat,
+      lng,
+      claimedAt
+    });
 
-    if (!navigator.onLine || queue.length > 0) {
-      this._enqueueOfflineAction({ type: 'claim', itemKey, lat, lng, claimedAt });
+    if (!navigator.onLine) {
       return { status: 'queued_offline', item: itemKey };
     }
 
-    const { data, error } = await sb.rpc('claim_collectible', {
-      p_item_key: itemKey,
-      p_lat: lat,
-      p_lng: lng,
-      p_claimed_at: claimedAt
-    });
-
-    if (error) {
-      // If network drops mid-request, save to queue
-      if (error.message.includes('Failed to fetch')) {
-        this._enqueueOfflineAction({ type: 'claim', itemKey, lat, lng, claimedAt });
-        return { status: 'queued_offline', item: itemKey };
-      }
-      throw error;
-    }
-
-    if (data?.inventory && window.CollectibleManager?.applyServerInventory) {
-    window.CollectibleManager.applyServerInventory(data.inventory);
-  }
-    return data;
+    // Trigger serial flush without blocking UI if already flushing
+    await this.flushOfflineQueue();
+    return { status: 'synced', item: itemKey };
   },
 
-  // Craft a Tier 2 item in the Forge
+  // Unified Craft: Always enqueues behind any pending claims, then triggers serial flush
   async craftForgeItem(resultItemKey) {
-    const queue = JSON.parse(localStorage.getItem(this.CACHE_KEYS.QUEUE) || '[]');
+    this._enqueueAction({
+      type: 'craft',
+      resultItemKey
+    });
 
-    // Queue behind any pending offline claims so ingredients exist on the server first
-    if (!navigator.onLine || queue.length > 0) {
-      this._enqueueOfflineAction({ type: 'craft', resultItemKey });
+    if (!navigator.onLine) {
       return { status: 'queued_offline', item: resultItemKey };
     }
 
-    const { data, error } = await sb.rpc('craft_forge_item', {
-      p_result_item_key: resultItemKey
-    });
-
-    if (error) {
-      if (error.message.includes('Failed to fetch')) {
-        this._enqueueOfflineAction({ type: 'craft', resultItemKey });
-        return { status: 'queued_offline', item: resultItemKey };
-      }
-      throw error;
-    }
-
-    if (data?.inventory && window.CollectibleManager?.applyServerInventory) {
-      window.CollectibleManager.applyServerInventory(data.inventory);
-    }
-    return data;
+    await this.flushOfflineQueue();
+    return { status: 'synced', item: resultItemKey };
   },
 
-  // Replay queued claims sequentially when connection returns
+  // Single Serial Queue Processor (Handles both live & offline-replayed actions)
   async flushOfflineQueue() {
-    if (!navigator.onLine || this._isFlushing) return;
-    const queue = JSON.parse(localStorage.getItem(this.CACHE_KEYS.QUEUE) || '[]');
-    if (queue.length === 0) return;
+    if (!navigator.onLine) return;
+
+    // If a flush is already running, flag a follow-up pass so new items aren't missed
+    if (this._isFlushing) {
+      this._flushRequested = true;
+      return;
+    }
+
+    // Ensure valid auth session exists before hitting authenticated RPCs
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) {
+      await this.initSession();
+    }
 
     this._isFlushing = true;
     let latestInventory = null;
+    let hadRejectedAction = false;
 
     try {
-      while (queue.length > 0) {
-        const action = queue[0];
-        let res;
+      do {
+        this._flushRequested = false;
+        let queue = this._getQueue();
 
-        if (action.type === 'claim') {
-          res = await sb.rpc('claim_collectible', {
-            p_item_key: action.itemKey,
-            p_lat: action.lat,
-            p_lng: action.lng,
-            p_claimed_at: action.claimedAt || action.queuedAt
-          });
-        } else if (action.type === 'craft') {
-          res = await sb.rpc('craft_forge_item', {
-            p_result_item_key: action.resultItemKey
-          });
-        }
+        while (queue.length > 0) {
+          if (!navigator.onLine) break;
 
-        if (res?.error) {
-          // Network dropped mid-flush: stop and keep remaining items for next reconnect
-          if (res.error.message.includes('Failed to fetch')) {
-            break;
+          const action = queue[0];
+          let res;
+
+          if (action.type === 'claim') {
+            res = await sb.rpc('claim_collectible', {
+              p_item_key: action.itemKey,
+              p_lat: action.lat,
+              p_lng: action.lng,
+              p_claimed_at: action.claimedAt || action.queuedAt
+            });
+          } else if (action.type === 'craft') {
+            res = await sb.rpc('craft_forge_item', {
+              p_result_item_key: action.resultItemKey
+            });
           }
-          // Anti-cheat or validation rejected this specific action: discard it and continue
-          console.warn('Rejected offline action:', action, res.error.message);
+
+          if (res?.error) {
+            const msg = res.error.message || '';
+            // Network drop or timeout: keep item in queue and pause until online
+            if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('fetch')) {
+              return;
+            }
+
+            // Server validation / anti-cheat rejection: drop invalid action and flag resync
+            console.warn('[Sync] Rejected queued action:', action, msg);
+            hadRejectedAction = true;
+            queue = this._getQueue();
+            queue.shift();
+            this._saveQueue(queue);
+            continue;
+          }
+
+          if (res?.data?.inventory) {
+            latestInventory = res.data.inventory;
+          }
+
+          // Re-read queue before shifting in case new actions arrived mid-request
+          queue = this._getQueue();
           queue.shift();
-          localStorage.setItem(this.CACHE_KEYS.QUEUE, JSON.stringify(queue));
-          continue;
+          this._saveQueue(queue);
         }
+      } while (this._flushRequested && this._getQueue().length > 0);
 
-        if (res?.data?.inventory) {
-          latestInventory = res.data.inventory;
-        }
-
-        queue.shift();
-        localStorage.setItem(this.CACHE_KEYS.QUEUE, JSON.stringify(queue));
-      }
-
-      // Once all queued actions have replayed, sync the final authoritative inventory
-      if (queue.length === 0 && window.CollectibleManager) {
-        if (latestInventory && window.CollectibleManager.applyServerInventory) {
+      // Reconcile local inventory with authoritative server state once queue empties
+      if (this._getQueue().length === 0 && window.CollectibleManager) {
+        if (latestInventory && !hadRejectedAction && window.CollectibleManager.applyServerInventory) {
           window.CollectibleManager.applyServerInventory(latestInventory);
         } else {
           await window.CollectibleManager.syncFromServer();
