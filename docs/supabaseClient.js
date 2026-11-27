@@ -60,29 +60,21 @@ const GameAPI = {
     return session.user;
   },
 
-   // Upgrade Visitor to a permanent Resident account (BS1–BS49 + Age Bracket + Email)
+   // Upgrade Visitor to a permanent Resident account (BS1–BS49 + Age Bracket + Email/Password)
   async upgradeToResident({ email, password, username, avatar, avatarType, outcode, ageBracket }) {
-    // Ensure an anonymous session exists before linking email
-    const cleanEmail = email.trim().toLowerCase();
+    // Ensure an anonymous session exists before linking email/password
     const { data: { session } } = await sb.auth.getSession();
     if (!session) {
       await this.initSession();
     }
 
-    // 1. Link recovery email to the anonymous auth.users record
-    // Sends a verification link / 6-digit OTP to confirm ownership
-    const { error: authError } = await sb.auth.updateUser({ email: cleanEmail });
-    if (authError) {
-      if (authError.message.toLowerCase().includes('already')) {
-        throw new Error('This email address is already registered to another account.');
-      }
-      throw authError;
-    }
+    // 1. Link email & password to the existing anonymous user ID
+    const { error: authError } = await sb.auth.updateUser({ email, password });
+    if (authError) throw authError;
 
     // 2. Save validated Resident profile details via secure RPC
     const { error: rpcError } = await sb.rpc('update_player_profile', {
       p_username: username,
-      p_email: cleanEmail,
       p_avatar: avatar || '🧭',
       p_avatar_type: avatarType || 'emoji',
       p_outcode: outcode,
@@ -185,85 +177,6 @@ const GameAPI = {
     Object.values(this.CACHE_KEYS).forEach(key => localStorage.removeItem(key));
     return true;
   },
-
-  // Account recovery using registred email (sends a verification link / 6-digit OTP to confirm ownership)
-  // Step 1 of Recovery on a new phone: Send 6-digit OTP / Magic Link
-  async sendRecoveryCode(email) {
-    const cleanEmail = email.trim().toLowerCase();
-    const { error } = await sb.auth.signInWithOtp({
-      email: cleanEmail,
-      options: {
-        shouldCreateUser: false // Prevents creating an empty account if email isn't registered
-      }
-    });
-    if (error) {
-      if (error.message.toLowerCase().includes('signups not allowed')) {
-        throw new Error('No Resident account found with that email address.');
-      }
-      throw error;
-    }
-    return true;
-  },
-
-  // Step 2 of Recovery: Verify 6-digit OTP code & hydrate localStorage from Supabase
-  async verifyRecoveryCode(email, token) {
-    const cleanEmail = email.trim().toLowerCase();
-    const { error } = await sb.auth.verifyOtp({
-      email: cleanEmail,
-      token: token.trim(),
-      type: 'email'
-    });
-    if (error) throw error;
-
-    return await this.restoreAccountFromCloud();
-  },
-
-  // Pull remote profile + inventory down to a new device's localStorage
-  async restoreAccountFromCloud() {
-    const { data, error } = await sb.rpc('get_my_full_account');
-    if (error) throw error;
-    if (!data || !data.profile) {
-      throw new Error('Account verified, but no Resident profile data was found.');
-    }
-
-    const p = data.profile;
-    await window.UserAccountService.saveProfile({
-      userId: p.id,
-      username: p.username || 'Bristol_Explorer',
-      avatar: p.avatar || '🧭',
-      avatarType: p.avatar_type || 'emoji',
-      outcode: p.outcode || 'Visitor',
-      ageBracket: p.age_bracket || '25_34',
-      isResident: Boolean(p.is_resident),
-      email: p.email || null
-    });
-
-    // Hydrate local save (bristol_game_save_v1) with cloud inventory
-    const rawSave = JSON.parse(localStorage.getItem('bristol_game_save_v1') || '{}');
-    const inventory = { ...(rawSave.inventory || {}) };
-    const crafted = { ...(rawSave.crafted || {}) };
-    const discovered = new Set(rawSave.discovered || []);
-
-    (data.inventory || []).forEach(item => {
-      if (item.discovered_recipe) {
-        crafted[item.item_key] = item.quantity;
-        discovered.add(item.item_key);
-      } else {
-        inventory[item.item_key] = item.quantity;
-      }
-    });
-
-    localStorage.setItem('bristol_game_save_v1', JSON.stringify({
-      ...rawSave,
-      inventory,
-      crafted,
-      discovered: Array.from(discovered)
-    }));
-
-    localStorage.setItem(this.CACHE_KEYS.INVENTORY, JSON.stringify(data.inventory || []));
-    return data.profile;
-  },
-
 
   // ==========================================================================
   // 2. INVENTORY & ANTI-CHEAT CLAIMING (With Offline Queue)
