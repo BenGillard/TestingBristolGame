@@ -23,7 +23,7 @@ window.onerror = function(msg, url, line) {
     statusDisplay.textContent = "JS Error: " + msg + " (Line " + line + ")";
 };
 
-// Build the un-dismissible 20mph safety overlay dynamically
+// Build the un-dismissible 15mph safety overlay dynamically
 function initSafetyOverlay() {
     safetyOverlay = document.createElement('div');
     safetyOverlay.id = 'safety-overlay';
@@ -68,6 +68,8 @@ function initRevealOverlay() {
     `;
     document.body.appendChild(revealOverlay);
 }
+
+let currentHeading = null;
 
 function createPlayerDivIcon() {
     return L.divIcon({
@@ -207,8 +209,22 @@ if (!window.InventoryUI) {
     initSafetyOverlay();
     requestCompassAccess();
     initRevealOverlay();
-
     const CM = window.CollectibleManager;
+
+    function updateInventoryUI() {
+        const inv = CM.getInventory();
+        const elStone = document.getElementById('count-stone');
+        const elWood = document.getElementById('count-wood');
+        const elWater = document.getElementById('count-water');
+        const elMetal = document.getElementById('count-metal');
+
+        if (elStone) elStone.textContent = inv.stone;
+        if (elWood) elWood.textContent = inv.wood;
+        if (elWater) elWater.textContent = inv.water;
+        if (elMetal) elMetal.textContent = inv.metal;
+    }
+
+    updateInventoryUI();
 
         // Full BS Postcode Area Bounds (Clevedon/Weston-super-Mare to Yate/Thornbury & Mendips)
     const BRISTOL_BOUNDS = L.latLngBounds([51.2700, -3.0600], [51.6750, -2.3700]);
@@ -347,9 +363,9 @@ if (!window.InventoryUI) {
             nearbyNode = null;
             claimBtn.style.display = "none";
 
-            if (window.UserAccountService) window.UserAccountService.triggerHaptic(40);
             if (window.DailiesUI) window.DailiesUI.recordCacheClaim();
             showClaimReveal(style);
+            updateInventoryUI();
             renderAllNodes();
 
             // Sync claim to Supabase with current GPS coordinates
@@ -419,7 +435,7 @@ if (!window.InventoryUI) {
                     return false;
                 }
 
-                // 3. 20 mph Safety Check
+                // 3. 15 mph Safety Check
                 if (speedMps > MAX_WALKING_SPEED_MPS && !isPassengerConfirmed) {
                     safetyOverlay.style.display = 'flex';
                 } else if (speedMps <= MAX_WALKING_SPEED_MPS) {
@@ -435,7 +451,7 @@ if (!window.InventoryUI) {
     // Handle mobile browser sleep / wake cycles cleanly
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
-            renderAllNodes(); // Catch up if reset passed while asleep
+            renderAllNodes(); // Catch up if 4:00 PM reset passed while asleep
             lastValidFix = null; // Prevent false teleport flag on wake
         }
     });

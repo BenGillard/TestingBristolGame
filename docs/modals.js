@@ -156,15 +156,6 @@ window.OverlaysUI = (function () {
         {
             q: 'Why does the 20 mph bus warning appear?',
             a: 'To keep players safe near Bristol roads, travelling faster than 20 mph pauses claiming until you confirm you are a passenger.'
-        },{
-            q: 'Whats the benfeit of registering as a BS Resident?',
-            a: 'Registering as a BS Resident allows you to join the Bristol district leaderboards, enjoy the daily rewards and challenges, and recover your account on a new device. Minimal information is collected (an email address, age bracket, and outcode) to preserve your privacy. These details are used only for the leaderboards and dailies. All your collectibles are safe when you upgrade! Of course, you can still enjoy finding treasures as a Visitor.'
-        },{
-            q: 'Won\'t this game just create more phone zombies?!',
-            a: 'Hopefully not! The game is designed to encourage walking and exploration. We consciously made the map visible and scrollable so you can plan a route and enjoy looking up whilst exploring Bristol.'
-        },{
-            q:'Will more features be added?',
-            a: 'Yes! This is an early prototype and we plan to add more features. We welcome your feedback and suggestions - please send them via our feedback button in the settings tab.'
         }
     ];
 

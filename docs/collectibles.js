@@ -10,29 +10,7 @@ window.CollectibleManager = (function() {
 
     const GLOBAL_COLLECTIBLES = [];
     let SCHEDULED_COLLECTIBLES = [];
-    let saveData = loadSave();
 
-    function loadSave() {
-        try {
-            const raw = localStorage.getItem(STORAGE_KEY);
-            if (raw) return JSON.parse(raw);
-        } catch (e) {
-            console.warn("Save load failed, resetting.", e);
-        }
-        return {
-            inventory: { stone: 0, wood: 0, water: 0, metal: 0 },
-            crafted: {},
-            discovered: [],
-            claimedGlobalIds: [],
-            claimedScheduledKeys: [],
-            personalCycleId: null,
-            personalNodes: []
-        };
-    }
-
-    function persist() {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(saveData));
-    }
 
     async function syncFromServer() {
         if (!window.GameAPI) return;
@@ -174,6 +152,40 @@ window.CollectibleManager = (function() {
             .filter(node => !saveData.claimedScheduledKeys.includes(node.id));
     }
 
+    const RECIPES = {
+        masonry_block: { label: "Masonry Block", cost: { stone: 2, water: 1 } },
+        reinforced_beam: { label: "Reinforced Beam", cost: { wood: 2, metal: 1 } }
+    };
+
+    let saveData = loadSave();
+
+    function loadSave() {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (raw) return JSON.parse(raw);
+        } catch (e) {
+            console.warn("Save load failed, resetting.", e);
+        }
+        return {
+            inventory: { stone: 0, wood: 0, water: 0, metal: 0 },
+            crafted: {},
+            discovered: [],
+            claimedGlobalIds: [],
+            claimedScheduledKeys: [],
+            personalCycleId: null,
+            personalNodes: []
+        };
+    }
+
+    loadLandmarkCollectibles("assets/bs_landmarks.geojson");
+    loadOsmCollectibles("assets/bs_greenery.geojson");
+    loadScheduledCollectibles("assets/scheduled_collectibles.json");
+
+
+    function persist() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(saveData));
+    }
+
     function getCurrentMidnightCycleId() {
         const now = new Date();
         return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}-0000`;
@@ -184,7 +196,7 @@ window.CollectibleManager = (function() {
         const keys = Object.keys(RESOURCE_STYLES);
         let index = 0;
 
-        const latStep = 0.0027; // can be changed so more or less dense map of spawns
+        const latStep = 0.0027;
         const lngStep = 0.0042;
 
         for (let lat = 51.3000; lat <= 51.6400; lat += latStep) {
@@ -235,8 +247,15 @@ window.CollectibleManager = (function() {
             if (target) target.claimed = true;
         }
         persist();
+        if (window.GameAPI) {
+           window.GameAPI.claimCollectible(node.type, node.lat, node.lng).catch(err =>
+               console.warn('Cloud claim sync warning:', err.message)
+           );
+        }
+
         return RESOURCE_STYLES[node.type];
     }
+
 
     function grantResource(type, amount = 1) {
         if (!RESOURCE_STYLES[type]) return null;
@@ -266,12 +285,9 @@ window.CollectibleManager = (function() {
         persist();
     }
 
-    loadLandmarkCollectibles("assets/bs_landmarks.geojson");
-    loadOsmCollectibles("assets/bs_greenery.geojson");
-    loadScheduledCollectibles("assets/scheduled_collectibles.json");
-
     return {
         styles: RESOURCE_STYLES,
+        recipes: RECIPES,
         syncFromServer,
         getInventory: () => saveData.inventory,
         getCrafted: () => saveData.crafted || {},

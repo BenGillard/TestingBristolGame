@@ -1,22 +1,39 @@
-window.InventoryUI = (function () {
+window.InventoryUI = (function() {
+    // Edit these 2nd-generation recipes anytime — order of ingredients does not matter
     const GEN2_RECIPES = [
-        { id: "paper",  name: "Paper",       icon: "📜", ingredients: ["wood", "water"] },
-        { id: "clay",   name: "Clay",        icon: "🏺", ingredients: ["stone", "water"] },
-        { id: "sparks", name: "Sparks",      icon: "⚡", ingredients: ["stone", "metal"] },
-        { id: "timber", name: "Hull Timber", icon: "⛵", ingredients: ["wood", "metal"] },
-        { id: "cobble", name: "Cobble",      icon: "🧱", ingredients: ["wood", "stone"] },
-        { id: "steam",  name: "Steam",       icon: "💨", ingredients: ["water", "metal"] }
+        { id: "paper",   name: "Paper",   icon: "📜", ingredients: ["wood", "water"] },
+        { id: "clay",    name: "Clay",    icon: "🏺", ingredients: ["stone", "water"] },
+        { id: "sparks",  name: "Sparks",  icon: "⚡", ingredients: ["stone", "metal"] },
+        { id: "timber",  name: "Hull Timber", icon: "⛵", ingredients: ["wood", "metal"] },
+        { id: "cobble",  name: "Cobble",  icon: "🧱", ingredients: ["wood", "stone"] },
+        { id: "steam",   name: "Steam",   icon: "💨", ingredients: ["water", "metal"] }
     ];
 
-    let forgeSlots = [null, null];
+    let forgeSlots = [null, null]; // Holds up to two 1st-gen resource keys
     let forgeMessage = "Tap two 1st Gen resources below to experiment.";
     let forgeStatusType = "neutral"; // "neutral" | "success" | "fail"
+
+    function updateTopBar() {
+        const CM = window.CollectibleManager;
+        if (!CM) return;
+        const inv = CM.getInventory();
+        const mapIds = {
+            stone: 'count-stone',
+            wood: 'count-wood',
+            water: 'count-water',
+            metal: 'count-metal'
+        };
+        Object.entries(mapIds).forEach(([key, elId]) => {
+            const el = document.getElementById(elId);
+            if (el) el.textContent = inv[key] || 0;
+        });
+    }
 
     function addToForge(resourceKey) {
         const CM = window.CollectibleManager;
         if (!CM) return;
-
-        const available = CM.getInventory()[resourceKey] || 0;
+        const inv = CM.getInventory();
+        const available = inv[resourceKey] || 0;
         const alreadyInForge = forgeSlots.filter(s => s === resourceKey).length;
 
         if (available <= alreadyInForge) {
@@ -31,6 +48,7 @@ window.InventoryUI = (function () {
         } else if (forgeSlots[1] === null) {
             forgeSlots[1] = resourceKey;
         } else {
+            // Replace oldest slot if both are full
             forgeSlots = [forgeSlots[1], resourceKey];
         }
 
@@ -50,9 +68,6 @@ window.InventoryUI = (function () {
         const CM = window.CollectibleManager;
         if (!CM || !forgeSlots[0] || !forgeSlots[1]) return;
 
-        const combineBtn = document.getElementById('btn-forge-combine');
-        if (combineBtn) combineBtn.disabled = true;
-
         const costMap = {};
         forgeSlots.forEach(key => {
             costMap[key] = (costMap[key] || 0) + 1;
@@ -65,16 +80,17 @@ window.InventoryUI = (function () {
         });
 
         if (match) {
+            // Check local balance first for instant feedback
             const inv = CM.getInventory();
             const hasEnough = Object.entries(costMap).every(([k, qty]) => (inv[k] || 0) >= qty);
             if (!hasEnough) {
                 forgeMessage = "Insufficient resources!";
                 forgeStatusType = "fail";
-                forgeSlots = [null, null];
                 render();
                 return;
             }
 
+            // Validate & execute atomically on Supabase if online
             if (window.GameAPI && navigator.onLine) {
                 try {
                     await window.GameAPI.craftForgeItem(match.id);
@@ -89,24 +105,21 @@ window.InventoryUI = (function () {
             CM.consumeResources(costMap);
             const isNewDiscovery = !CM.getDiscovered().includes(match.id);
             CM.addCraftedItem(match.id);
-
-            if (window.UserAccountService) {
-                window.UserAccountService.triggerHaptic(45);
-            }
-
             forgeMessage = isNewDiscovery
                 ? `✨ New Discovery! You created ${match.icon} ${match.name}!`
                 : `Created +1 ${match.icon} ${match.name}!`;
             forgeStatusType = "success";
+            forgeSlots = [null, null];
+            updateTopBar();
         } else {
             forgeMessage = "Nothing happened... try a different combination!";
             forgeStatusType = "fail";
+            forgeSlots = [null, null];
         }
 
-        forgeSlots = [null, null];
         render();
     }
-
+    
     function render() {
         const CM = window.CollectibleManager;
         const container = document.getElementById('inventory-content');
@@ -122,6 +135,7 @@ window.InventoryUI = (function () {
         const canCombine = Boolean(forgeSlots[0] && forgeSlots[1]);
 
         container.innerHTML = `
+            <!-- Pinned Forge Box -->
             <div class="forge-sticky-wrapper">
                 <div class="forge-card">
                     <div class="forge-header">
@@ -130,7 +144,7 @@ window.InventoryUI = (function () {
                     </div>
 
                     <div class="forge-slots-row">
-                        <button type="button" class="forge-slot ${slot0Style ? 'filled' : ''}" data-slot="0" title="Tap to clear">
+                        <button class="forge-slot ${slot0Style ? 'filled' : ''}" data-slot="0" title="Tap to clear">
                             ${slot0Style
                                 ? `<span class="slot-icon">${slot0Style.icon}</span><span class="slot-name">${slot0Style.label}</span>`
                                 : `<span class="slot-empty">+ Slot 1</span>`}
@@ -138,7 +152,7 @@ window.InventoryUI = (function () {
 
                         <span class="forge-plus">+</span>
 
-                        <button type="button" class="forge-slot ${slot1Style ? 'filled' : ''}" data-slot="1" title="Tap to clear">
+                        <button class="forge-slot ${slot1Style ? 'filled' : ''}" data-slot="1" title="Tap to clear">
                             ${slot1Style
                                 ? `<span class="slot-icon">${slot1Style.icon}</span><span class="slot-name">${slot1Style.label}</span>`
                                 : `<span class="slot-empty">+ Slot 2</span>`}
@@ -151,19 +165,20 @@ window.InventoryUI = (function () {
 
                     <div class="forge-feedback ${forgeStatusType}">${forgeMessage}</div>
 
-                    <button type="button" class="forge-combine-btn" id="btn-forge-combine" ${!canCombine ? 'disabled' : ''}>
+                    <button class="forge-combine-btn" id="btn-forge-combine" ${!canCombine ? 'disabled' : ''}>
                         Combine Resources
                     </button>
                 </div>
             </div>
 
+            <!-- 1st Generation Inventory Section -->
             <h3 class="inv-section-title">1st Generation Collectibles</h3>
             <div class="inv-grid">
                 ${gen1Keys.map(key => {
                     const style = CM.styles[key];
                     const count = inv[key] || 0;
                     return `
-                        <button type="button" class="inv-box gen1-box ${count === 0 ? 'empty-stock' : ''}" data-gen1="${key}">
+                        <button class="inv-box gen1-box ${count === 0 ? 'empty-stock' : ''}" data-gen1="${key}">
                             <span class="gen-tag gen-1">1st</span>
                             <div class="inv-icon">${style.icon}</div>
                             <div class="inv-name">${style.label}</div>
@@ -173,6 +188,7 @@ window.InventoryUI = (function () {
                 }).join('')}
             </div>
 
+            <!-- 2nd Generation Inventory Section -->
             <h3 class="inv-section-title">2nd Generation Collectibles (${discovered.length}/${GEN2_RECIPES.length} Discovered)</h3>
             <div class="inv-grid">
                 ${GEN2_RECIPES.map(recipe => {
@@ -192,9 +208,14 @@ window.InventoryUI = (function () {
                         </div>
                     `;
                 }).join('')}
+
             </div>
         `;
 
+        bindEvents();
+    }
+
+    function bindEvents() {
         document.querySelectorAll('.forge-slot').forEach(btn => {
             btn.addEventListener('click', () => {
                 const idx = Number(btn.dataset.slot);
@@ -202,13 +223,69 @@ window.InventoryUI = (function () {
             });
         });
 
-        const combineBtn = document.getElementById('btn-forge-combine');
+        const combineBtn = document.getElementById('forge-combine-btn');
         if (combineBtn && !combineBtn.disabled) {
-            combineBtn.addEventListener('click', attemptCombine);
+            combineBtn.addEventListener('click', async () => {
+                if (forgeSlots.length !== 2) return;
+                const [first, second] = forgeSlots;
+
+                // Prevent duplicate click while processing
+                combineBtn.disabled = true;
+
+                // 1. Verify recipe locally first
+                const recipeKey = Object.keys(GEN2_RECIPES).find(key => {
+                    const [reqA, reqB] = GEN2_RECIPES[key].ingredients;
+                    return (first === reqA && second === reqB) || (first === reqB && second === reqA);
+                });
+
+                if (!recipeKey) {
+                    const msgEl = document.getElementById('forge-message');
+                    if (msgEl) {
+                        msgEl.style.color = '#f87171';
+                        msgEl.textContent = `Nothing formed from ${first} + ${second}. Try a different pair!`;
+                    }
+                    forgeSlots = [];
+                    render();
+                    return;
+                }
+
+                // 2. Consume 1st-Gen resources and grant 2nd-Gen item locally
+                const consumed = CM.consumeResources({ [first]: 1, [second]: 1 });
+                if (consumed) {
+                    CM.addCraftedItem(recipeKey);
+                    const created = GEN2_RECIPES[recipeKey];
+
+                    if (window.UserAccountService) {
+                        window.UserAccountService.triggerHaptic(45);
+                    }
+
+                    // 3. Sync craft with Supabase when online
+                    if (window.GameAPI && navigator.onLine) {
+                        window.GameAPI.craftForgeItem(recipeKey).catch(err => {
+                            console.warn('Cloud forge sync warning:', err.message);
+                        });
+                    }
+
+                    forgeSlots = [];
+                    render();
+
+                    const msgEl = document.getElementById('forge-message');
+                    if (msgEl) {
+                        msgEl.style.color = '#4ad66d';
+                        msgEl.textContent = `✨ Forged ${created.icon} ${created.label}!`;
+                    }
+                } else {
+                    forgeSlots = [];
+                    render();
+                }
+            });
         }
 
+
         document.querySelectorAll('.gen1-box').forEach(btn => {
-            btn.addEventListener('click', () => addToForge(btn.dataset.gen1));
+            btn.addEventListener('click', () => {
+                addToForge(btn.dataset.gen1);
+            });
         });
     }
 
