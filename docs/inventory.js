@@ -13,22 +13,6 @@ window.InventoryUI = (function() {
     let forgeMessage = "Tap two 1st Gen resources below to experiment.";
     let forgeStatusType = "neutral"; // "neutral" | "success" | "fail"
 
-    function updateTopBar() {
-        const CM = window.CollectibleManager;
-        if (!CM) return;
-        const inv = CM.getInventory();
-        const mapIds = {
-            stone: 'count-stone',
-            wood: 'count-wood',
-            water: 'count-water',
-            metal: 'count-metal'
-        };
-        Object.entries(mapIds).forEach(([key, elId]) => {
-            const el = document.getElementById(elId);
-            if (el) el.textContent = inv[key] || 0;
-        });
-    }
-
     function addToForge(resourceKey) {
         const CM = window.CollectibleManager;
         if (!CM) return;
@@ -110,7 +94,6 @@ window.InventoryUI = (function() {
                 : `Created +1 ${match.icon} ${match.name}!`;
             forgeStatusType = "success";
             forgeSlots = [null, null];
-            updateTopBar();
         } else {
             forgeMessage = "Nothing happened... try a different combination!";
             forgeStatusType = "fail";
