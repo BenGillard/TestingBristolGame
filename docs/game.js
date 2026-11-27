@@ -207,30 +207,10 @@ window.addEventListener('load', async () => {
         }
     }
 
-
-    try {
-        if (window.CollectibleManager?.syncFromServer) {
-            await window.CollectibleManager.syncFromServer();
-        }
-    } catch (err) {
-        window.showDebugError('3. Inventory Sync', err);
-    }
-
-    try {
-        if (window.DailiesUI?.loadScheduledContent) {
-            await window.DailiesUI.loadScheduledContent();
-            window.DailiesUI.render();
-        }
-    } catch (err) {
-        window.showDebugError('4. Daily Schedule', err);
-    }
-}
-
 // Also check if InventoryUI loaded properly
 if (!window.InventoryUI) {
     if (window.showDebugError) window.showDebugError('5. InventoryUI', 'inventory.js crashed (check for syntax error)');
 }
-
 
     // 1. Supabase session booted in debugger block above.
 
@@ -288,7 +268,7 @@ if (!window.InventoryUI) {
             }
         }
     });
-    
+
     // ---------------------------------------------------
 
     // --------------------------------------------------
