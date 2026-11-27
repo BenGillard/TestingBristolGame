@@ -352,31 +352,25 @@ if (!window.InventoryUI) {
         });
     }
 
+    // Listen for authoritative inventory updates from Supabase
+    window.addEventListener('inventorySynced', updateInventoryUI);
 
-        claimBtn.addEventListener('click', async () => {
-            if (!nearbyNode) return;
-            const claimedNode = nearbyNode;
-            const style = CM.claimNode(claimedNode);
+    claimBtn.addEventListener('click', () => {
+        if (!nearbyNode) return;
+        const claimedNode = nearbyNode;
+        const style = CM.claimNode(claimedNode);
 
-            statusDisplay.textContent = `Claimed +1 ${style.icon} ${style.label}!`;
-            statusDisplay.style.color = "#4ad66d";
-            nearbyNode = null;
-            claimBtn.style.display = "none";
+        statusDisplay.textContent = `Claimed +1 ${style.icon} ${style.label}!`;
+        statusDisplay.style.color = "#4ad66d";
+        nearbyNode = null;
+        claimBtn.style.display = "none";
 
-            if (window.DailiesUI) window.DailiesUI.recordCacheClaim();
-            showClaimReveal(style);
-            updateInventoryUI();
-            renderAllNodes();
+        if (window.DailiesUI) window.DailiesUI.recordCacheClaim();
+        showClaimReveal(style);
+        updateInventoryUI();
+        renderAllNodes();
+    });
 
-            // Sync claim to Supabase with current GPS coordinates
-            if (window.GameAPI && latestPos) {
-                try {
-                    await window.GameAPI.claimCollectible(claimedNode.type, latestPos.lat, latestPos.lng);
-                } catch (err) {
-                    console.warn('Server claim validation warning:', err.message);
-                }
-            }
-        });
 
 
     function checkProximity(currentPos) {
@@ -451,10 +445,12 @@ if (!window.InventoryUI) {
     // Handle mobile browser sleep / wake cycles cleanly
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
-            renderAllNodes(); // Catch up if 4:00 PM reset passed while asleep
+            renderAllNodes(); // Catch up if 4:00 PM / midnight reset passed while asleep
             lastValidFix = null; // Prevent false teleport flag on wake
+            if (CM?.syncFromServer) CM.syncFromServer();
         }
     });
+
 
     function startGPS() {
         if (!('geolocation' in navigator)) return;

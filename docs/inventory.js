@@ -74,21 +74,30 @@ window.InventoryUI = (function() {
                 return;
             }
 
-            // Validate & execute atomically on Supabase if online
-            if (window.GameAPI && navigator.onLine) {
+            const isNewDiscovery = !CM.getDiscovered().includes(match.id);
+
+            if (window.GameAPI) {
                 try {
-                    await window.GameAPI.craftForgeItem(match.id);
+                    const res = await window.GameAPI.craftForgeItem(match.id);
+                    if (res?.status === 'queued_offline') {
+                        // Offline: optimistically update local cache until signal returns
+                        CM.consumeResources(costMap);
+                        CM.addCraftedItem(match.id);
+                    } else if (res?.inventory && CM.applyServerInventory) {
+                        // Online: apply exact server inventory immediately
+                        CM.applyServerInventory(res.inventory);
+                    }
                 } catch (err) {
-                    forgeMessage = err.message || "Forge sync failed.";
+                    forgeMessage = err.message || "Insufficient ingredients.";
                     forgeStatusType = "fail";
                     render();
                     return;
                 }
+            } else {
+                CM.consumeResources(costMap);
+                CM.addCraftedItem(match.id);
             }
 
-            CM.consumeResources(costMap);
-            const isNewDiscovery = !CM.getDiscovered().includes(match.id);
-            CM.addCraftedItem(match.id);
             forgeMessage = isNewDiscovery
                 ? `✨ New Discovery! You created ${match.icon} ${match.name}!`
                 : `Created +1 ${match.icon} ${match.name}!`;
@@ -102,6 +111,7 @@ window.InventoryUI = (function() {
 
         render();
     }
+
     
     function render() {
         const CM = window.CollectibleManager;
@@ -206,64 +216,13 @@ window.InventoryUI = (function() {
             });
         });
 
-        const combineBtn = document.getElementById('forge-combine-btn');
+        const combineBtn = document.getElementById('btn-forge-combine');
         if (combineBtn && !combineBtn.disabled) {
             combineBtn.addEventListener('click', async () => {
-                if (forgeSlots.length !== 2) return;
-                const [first, second] = forgeSlots;
-
-                // Prevent duplicate click while processing
                 combineBtn.disabled = true;
-
-                // 1. Verify recipe locally first
-                const recipeKey = Object.keys(GEN2_RECIPES).find(key => {
-                    const [reqA, reqB] = GEN2_RECIPES[key].ingredients;
-                    return (first === reqA && second === reqB) || (first === reqB && second === reqA);
-                });
-
-                if (!recipeKey) {
-                    const msgEl = document.getElementById('forge-message');
-                    if (msgEl) {
-                        msgEl.style.color = '#f87171';
-                        msgEl.textContent = `Nothing formed from ${first} + ${second}. Try a different pair!`;
-                    }
-                    forgeSlots = [];
-                    render();
-                    return;
-                }
-
-                // 2. Consume 1st-Gen resources and grant 2nd-Gen item locally
-                const consumed = CM.consumeResources({ [first]: 1, [second]: 1 });
-                if (consumed) {
-                    CM.addCraftedItem(recipeKey);
-                    const created = GEN2_RECIPES[recipeKey];
-
-                    if (window.UserAccountService) {
-                        window.UserAccountService.triggerHaptic(45);
-                    }
-
-                    // 3. Sync craft with Supabase when online
-                    if (window.GameAPI && navigator.onLine) {
-                        window.GameAPI.craftForgeItem(recipeKey).catch(err => {
-                            console.warn('Cloud forge sync warning:', err.message);
-                        });
-                    }
-
-                    forgeSlots = [];
-                    render();
-
-                    const msgEl = document.getElementById('forge-message');
-                    if (msgEl) {
-                        msgEl.style.color = '#4ad66d';
-                        msgEl.textContent = `✨ Forged ${created.icon} ${created.label}!`;
-                    }
-                } else {
-                    forgeSlots = [];
-                    render();
-                }
+                await attemptCombine();
             });
         }
-
 
         document.querySelectorAll('.gen1-box').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -272,5 +231,11 @@ window.InventoryUI = (function() {
         });
     }
 
+        window.addEventListener('inventorySynced', () => {
+        const modal = document.getElementById('inventory-content');
+        if (modal && modal.offsetParent !== null) render();
+    });
+
     return { render };
+
 })();

@@ -29,7 +29,7 @@ const GameAPI = {
   CACHE_KEYS: {
     SCHEDULE: 'bristol_game_daily_schedule',
     INVENTORY: 'bristol_game_inventory',
-    QUEUE: 'bristol_game_offline_queue',
+    QUEUE: 'bristol_offline_actions_v1', // Unified chronological queue
     VOTED_DATE: 'bristol_game_poll_voted_date'
   },
 
@@ -73,14 +73,15 @@ const GameAPI = {
     if (authError) throw authError;
 
     // 2. Save validated Resident profile details via secure RPC
-    const { error: rpcError } = await sb.rpc('update_player_profile', {
-      p_username: username,
-      p_avatar: avatar || '🧭',
-      p_avatar_type: avatarType || 'emoji',
-      p_outcode: outcode,
-      p_age_bracket: ageBracket,
-      p_is_resident: true
-    });
+  const { error: rpcError } = await sb.rpc('update_player_profile', {
+    p_username: username,
+    p_email: email, // Added to match SQL signature
+    p_avatar: avatar || '🧭',
+    p_avatar_type: avatarType || 'emoji',
+    p_outcode: outcode,
+    p_age_bracket: ageBracket,
+    p_is_resident: true
+  });
     if (rpcError) throw rpcError;
 
     // 3. Flush any pending offline claims first
@@ -154,14 +155,15 @@ const GameAPI = {
       await this.initSession();
     }
 
-    const { error } = await sb.rpc('update_player_profile', {
-      p_username: username,
-      p_avatar: avatar || '🧭',
-      p_avatar_type: avatarType || 'emoji',
-      p_outcode: outcode,
-      p_age_bracket: isResident ? ageBracket : null,
-      p_is_resident: isResident
-    });
+  const { error } = await sb.rpc('update_player_profile', {
+    p_username: username,
+    p_email: null, // Added to match SQL signature
+    p_avatar: avatar || '🧭',
+    p_avatar_type: avatarType || 'emoji',
+    p_outcode: outcode,
+    p_age_bracket: isResident ? ageBracket : null,
+    p_is_resident: isResident
+  });
     if (error) throw error;
     return true;
   },
@@ -198,66 +200,134 @@ const GameAPI = {
     }
   },
 
+  _enqueueOfflineAction(action) {
+  const queue = JSON.parse(localStorage.getItem(this.CACHE_KEYS.QUEUE) || '[]');
+  queue.push({
+    ...action,
+    queuedAt: new Date().toISOString()
+  });
+  localStorage.setItem(this.CACHE_KEYS.QUEUE, JSON.stringify(queue));
+},
+
   // Claim a collectible (queues locally if signal drops in tunnels/pubs)
-  async claimCollectible(itemKey, lat, lng) {
-    if (!navigator.onLine) {
-      this._queueOfflineClaim({ itemKey, lat, lng, timestamp: Date.now() });
+  async claimCollectible(itemKey, lat, lng, claimedAt = new Date().toISOString()) {
+    const queue = JSON.parse(localStorage.getItem(this.CACHE_KEYS.QUEUE) || '[]');
+
+    if (!navigator.onLine || queue.length > 0) {
+      this._enqueueOfflineAction({ type: 'claim', itemKey, lat, lng, claimedAt });
       return { status: 'queued_offline', item: itemKey };
     }
 
     const { data, error } = await sb.rpc('claim_collectible', {
       p_item_key: itemKey,
       p_lat: lat,
-      p_lng: lng
+      p_lng: lng,
+      p_claimed_at: claimedAt
     });
 
     if (error) {
       // If network drops mid-request, save to queue
       if (error.message.includes('Failed to fetch')) {
-        this._queueOfflineClaim({ itemKey, lat, lng, timestamp: Date.now() });
+        this._enqueueOfflineAction({ type: 'claim', itemKey, lat, lng, claimedAt });
         return { status: 'queued_offline', item: itemKey };
       }
       throw error;
     }
 
+    if (data?.inventory && window.CollectibleManager?.applyServerInventory) {
+    window.CollectibleManager.applyServerInventory(data.inventory);
+  }
     return data;
   },
 
   // Craft a Tier 2 item in the Forge
   async craftForgeItem(resultItemKey) {
+    const queue = JSON.parse(localStorage.getItem(this.CACHE_KEYS.QUEUE) || '[]');
+
+    // Queue behind any pending offline claims so ingredients exist on the server first
+    if (!navigator.onLine || queue.length > 0) {
+      this._enqueueOfflineAction({ type: 'craft', resultItemKey });
+      return { status: 'queued_offline', item: resultItemKey };
+    }
+
     const { data, error } = await sb.rpc('craft_forge_item', {
       p_result_item_key: resultItemKey
     });
-    if (error) throw error;
-    return data;
-  },
 
-  _queueOfflineClaim(claimObj) {
-    const queue = JSON.parse(localStorage.getItem(this.CACHE_KEYS.QUEUE) || '[]');
-    queue.push(claimObj);
-    localStorage.setItem(this.CACHE_KEYS.QUEUE, JSON.stringify(queue));
+    if (error) {
+      if (error.message.includes('Failed to fetch')) {
+        this._enqueueOfflineAction({ type: 'craft', resultItemKey });
+        return { status: 'queued_offline', item: resultItemKey };
+      }
+      throw error;
+    }
+
+    if (data?.inventory && window.CollectibleManager?.applyServerInventory) {
+      window.CollectibleManager.applyServerInventory(data.inventory);
+    }
+    return data;
   },
 
   // Replay queued claims sequentially when connection returns
   async flushOfflineQueue() {
-    if (!navigator.onLine) return;
+    if (!navigator.onLine || this._isFlushing) return;
     const queue = JSON.parse(localStorage.getItem(this.CACHE_KEYS.QUEUE) || '[]');
     if (queue.length === 0) return;
 
-    const remaining = [];
-    for (const item of queue) {
-      const { error } = await sb.rpc('claim_collectible', {
-        p_item_key: item.itemKey,
-        p_lat: item.lat,
-        p_lng: item.lng
-      });
-      // Keep in queue only if it was a network error; drop if rejected by anti-cheat
-      if (error && error.message.includes('Failed to fetch')) {
-        remaining.push(item);
+    this._isFlushing = true;
+    let latestInventory = null;
+
+    try {
+      while (queue.length > 0) {
+        const action = queue[0];
+        let res;
+
+        if (action.type === 'claim') {
+          res = await sb.rpc('claim_collectible', {
+            p_item_key: action.itemKey,
+            p_lat: action.lat,
+            p_lng: action.lng,
+            p_claimed_at: action.claimedAt || action.queuedAt
+          });
+        } else if (action.type === 'craft') {
+          res = await sb.rpc('craft_forge_item', {
+            p_result_item_key: action.resultItemKey
+          });
+        }
+
+        if (res?.error) {
+          // Network dropped mid-flush: stop and keep remaining items for next reconnect
+          if (res.error.message.includes('Failed to fetch')) {
+            break;
+          }
+          // Anti-cheat or validation rejected this specific action: discard it and continue
+          console.warn('Rejected offline action:', action, res.error.message);
+          queue.shift();
+          localStorage.setItem(this.CACHE_KEYS.QUEUE, JSON.stringify(queue));
+          continue;
+        }
+
+        if (res?.data?.inventory) {
+          latestInventory = res.data.inventory;
+        }
+
+        queue.shift();
+        localStorage.setItem(this.CACHE_KEYS.QUEUE, JSON.stringify(queue));
       }
+
+      // Once all queued actions have replayed, sync the final authoritative inventory
+      if (queue.length === 0 && window.CollectibleManager) {
+        if (latestInventory && window.CollectibleManager.applyServerInventory) {
+          window.CollectibleManager.applyServerInventory(latestInventory);
+        } else {
+          await window.CollectibleManager.syncFromServer();
+        }
+      }
+    } finally {
+      this._isFlushing = false;
     }
-    localStorage.setItem(this.CACHE_KEYS.QUEUE, JSON.stringify(remaining));
   },
+
 
   // ==========================================================================
   // 3. DAILY/BULLETIN SCHEDULE & ZERO-TRACKING POLLS

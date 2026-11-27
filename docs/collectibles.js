@@ -11,32 +11,39 @@ window.CollectibleManager = (function() {
     const GLOBAL_COLLECTIBLES = [];
     let SCHEDULED_COLLECTIBLES = [];
 
+    function applyServerInventory(rows) {
+    if (!Array.isArray(rows)) return;
+    const gen1Keys = Object.keys(RESOURCE_STYLES);
 
-    async function syncFromServer() {
-        if (!window.GameAPI) return;
-        try {
-            const rows = await window.GameAPI.getInventory();
-            if (!Array.isArray(rows) || rows.length === 0) return;
+    // Reset counts before applying authoritative server state
+    gen1Keys.forEach(k => { saveData.inventory[k] = 0; });
+    saveData.crafted = {};
+    saveData.discovered = [];
 
-            const gen1Keys = Object.keys(RESOURCE_STYLES);
-            rows.forEach(row => {
-                if (gen1Keys.includes(row.item_key)) {
-                    saveData.inventory[row.item_key] = row.quantity;
-                } else {
-                    if (!saveData.crafted) saveData.crafted = {};
-                    if (!saveData.discovered) saveData.discovered = [];
-                    saveData.crafted[row.item_key] = row.quantity;
-                    if (row.discovered_recipe && !saveData.discovered.includes(row.item_key)) {
-                        saveData.discovered.push(row.item_key);
-                    }
-                }
-            });
-            persist();
-            window.dispatchEvent(new Event('inventorySynced'));
-        } catch (err) {
-            console.warn('Inventory sync skipped (offline):', err.message);
+    rows.forEach(row => {
+        if (gen1Keys.includes(row.item_key)) {
+            saveData.inventory[row.item_key] = row.quantity;
+        } else {
+            saveData.crafted[row.item_key] = row.quantity;
+            if (row.discovered_recipe && !saveData.discovered.includes(row.item_key)) {
+                saveData.discovered.push(row.item_key);
+            }
         }
+    });
+
+    persist();
+    window.dispatchEvent(new Event('inventorySynced'));
+}
+
+async function syncFromServer() {
+    if (!window.GameAPI) return;
+    try {
+        const rows = await window.GameAPI.getInventory();
+        applyServerInventory(rows);
+    } catch (err) {
+        console.warn('Inventory sync skipped (offline):', err.message);
     }
+}
 
 
     async function loadLandmarkCollectibles(geoJsonUrl) {
@@ -248,10 +255,13 @@ window.CollectibleManager = (function() {
         }
         persist();
         if (window.GameAPI) {
-           window.GameAPI.claimCollectible(node.type, node.lat, node.lng).catch(err =>
-               console.warn('Cloud claim sync warning:', err.message)
-           );
+            window.GameAPI.claimCollectible(node.type, node.lat, node.lng).catch(err => {
+                console.warn('Cloud claim sync warning:', err.message);
+                // Re-sync from server so rejected claims don't leave ghost items locally
+                syncFromServer();
+            });
         }
+
 
         return RESOURCE_STYLES[node.type];
     }
@@ -288,6 +298,7 @@ window.CollectibleManager = (function() {
     return {
         styles: RESOURCE_STYLES,
         recipes: RECIPES,
+        applyServerInventory,
         syncFromServer,
         getInventory: () => saveData.inventory,
         getCrafted: () => saveData.crafted || {},
@@ -297,6 +308,6 @@ window.CollectibleManager = (function() {
         claimNode,
         grantResource,
         consumeResources,
-        addCraftedItem
+        addCraftedItem,
     };
 })();
